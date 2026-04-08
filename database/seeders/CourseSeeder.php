@@ -46,7 +46,7 @@ class CourseSeeder extends Seeder
                 'faculty_profile_id' => $faculty?->facultyProfile?->id,
                 'code' => $data['code'],
                 'title' => $data['title'],
-                'description' => 'A comprehensive course on '.strtolower($data['title']),
+                'description' => 'A comprehensive course on ' . strtolower($data['title']),
                 'credits' => $data['credits'],
                 'semester' => $data['semester'],
                 'capacity' => $data['capacity'],

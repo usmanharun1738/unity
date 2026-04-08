@@ -20,8 +20,8 @@ class EnrollmentSeeder extends Seeder
         $students = [];
         for ($i = 1; $i <= 30; $i++) {
             $user = User::create([
-                'name' => 'Student '.$i,
-                'email' => 'student'.$i.'@university.edu',
+                'name' => 'Student ' . $i,
+                'email' => 'student' . $i . '@university.edu',
                 'password' => Hash::make('password'),
                 'email_verified_at' => now(),
             ]);
