@@ -7,6 +7,9 @@
 /storage/pail
 /vendor
 .env
+.github
+.junie
+.vscode
 .env.backup
 .env.production
 .phpactor.json

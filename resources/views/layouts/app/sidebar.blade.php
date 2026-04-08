@@ -15,6 +15,32 @@
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
+
+                    @if (auth()->user()->hasAnyRole(['admin', 'department-staff']))
+                        <flux:sidebar.item icon="building-office-2" :href="route('departments.index')" :current="request()->routeIs('departments.*')" wire:navigate>
+                            {{ __('Departments') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="book-open" :href="route('subjects.index')" :current="request()->routeIs('subjects.*')" wire:navigate>
+                            {{ __('Subjects') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="users" :href="route('faculty.index')" :current="request()->routeIs('faculty.*')" wire:navigate>
+                            {{ __('Faculty') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="clipboard-document-check" :href="route('enrollments.index')" :current="request()->routeIs('enrollments.*')" wire:navigate>
+                            {{ __('Enrollments') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="academic-cap" :href="route('courses.index')" :current="request()->routeIs('courses.*')" wire:navigate>
+                            {{ __('Classes') }}
+                        </flux:sidebar.item>
+                    @else
+                        <flux:sidebar.item icon="clipboard-document-check" :href="route('enrollments.index')" :current="request()->routeIs('enrollments.*')" wire:navigate>
+                            {{ __('Enrollments') }}
+                        </flux:sidebar.item>
+                    @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
