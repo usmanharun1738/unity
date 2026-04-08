@@ -2,6 +2,8 @@
 
 use App\Enums\RoleName;
 use App\Models\Course;
+use App\Models\Department;
+use App\Models\FacultyProfile;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -13,6 +15,18 @@ new #[Title('Subjects')] class extends Component
     use WithPagination;
 
     public string $search = '';
+
+    public string $title = '';
+
+    public string $code = '';
+
+    public ?int $department_id = null;
+
+    public ?int $faculty_profile_id = null;
+
+    public string $description = '';
+
+    public bool $showCreateForm = false;
 
     public function mount(): void
     {
@@ -40,6 +54,47 @@ new #[Title('Subjects')] class extends Component
             ->orderBy('title')
             ->paginate(7);
     }
+
+    #[Computed]
+    public function departments()
+    {
+        return Department::query()->orderBy('name')->get(['id', 'name']);
+    }
+
+    #[Computed]
+    public function facultyProfiles()
+    {
+        return FacultyProfile::query()->with('user:id,name')->orderBy('employee_code')->get();
+    }
+
+    public function createSubject(): void
+    {
+        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+
+        $validated = $this->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'code' => ['required', 'string', 'max:20', 'unique:courses,code'],
+            'department_id' => ['required', 'exists:departments,id'],
+            'faculty_profile_id' => ['nullable', 'exists:faculty_profiles,id'],
+            'description' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        Course::query()->create($validated + [
+            'credits' => 3,
+            'is_active' => true,
+        ]);
+
+        $this->reset([
+            'title',
+            'code',
+            'department_id',
+            'faculty_profile_id',
+            'description',
+            'showCreateForm',
+        ]);
+
+        $this->dispatch('subject-created');
+    }
 }; ?>
 
 <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
@@ -50,8 +105,41 @@ new #[Title('Subjects')] class extends Component
             <flux:subheading>{{ __('Quick access to essential metrics and management tools.') }}</flux:subheading>
         </div>
 
-        <flux:button variant="primary" icon="plus">{{ __('Add') }}</flux:button>
+        <flux:button variant="primary" icon="plus" wire:click="$toggle('showCreateForm')">{{ __('Add') }}</flux:button>
     </div>
+
+    @if ($showCreateForm)
+        <div class="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <flux:heading size="lg">{{ __('Create Subject') }}</flux:heading>
+
+            <form wire:submit="createSubject" class="mt-4 grid gap-4 md:grid-cols-2">
+                <flux:input wire:model="title" :label="__('Subject name')" type="text" required />
+                <flux:input wire:model="code" :label="__('Code')" type="text" required />
+
+                <flux:select wire:model="department_id" :label="__('Department')" required>
+                    <option value="">{{ __('Select department') }}</option>
+                    @foreach ($this->departments as $department)
+                        <option value="{{ $department->id }}">{{ $department->name }}</option>
+                    @endforeach
+                </flux:select>
+
+                <flux:select wire:model="faculty_profile_id" :label="__('Teacher')">
+                    <option value="">{{ __('Unassigned') }}</option>
+                    @foreach ($this->facultyProfiles as $faculty)
+                        <option value="{{ $faculty->id }}">{{ $faculty->user?->name }} ({{ $faculty->employee_code }})</option>
+                    @endforeach
+                </flux:select>
+
+                <flux:input wire:model="description" :label="__('Description')" type="text" class="md:col-span-2" />
+
+                <div class="md:col-span-2 flex items-center gap-3">
+                    <flux:button variant="primary" type="submit">{{ __('Save subject') }}</flux:button>
+                    <flux:button type="button" variant="ghost" wire:click="$set('showCreateForm', false)">{{ __('Cancel') }}</flux:button>
+                    <x-action-message on="subject-created">{{ __('Created.') }}</x-action-message>
+                </div>
+            </form>
+        </div>
+    @endif
 
     <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
         <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search by name')" />

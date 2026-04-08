@@ -2,6 +2,7 @@
 
 use App\Enums\RoleName;
 use App\Models\Course;
+use App\Models\Department;
 use App\Models\FacultyProfile;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -11,11 +12,52 @@ new #[Title('Faculty Profile')] class extends Component
 {
     public FacultyProfile $facultyProfile;
 
+    public bool $editing = false;
+
+    public ?int $department_id = null;
+
+    public string $title = '';
+
+    public string $bio = '';
+
     public function mount(FacultyProfile $facultyProfile): void
     {
         abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
 
         $this->facultyProfile = $facultyProfile->load(['user', 'department']);
+        $this->department_id = $this->facultyProfile->department_id;
+        $this->title = $this->facultyProfile->title ?? '';
+        $this->bio = $this->facultyProfile->bio ?? '';
+    }
+
+    #[Computed]
+    public function departments()
+    {
+        return Department::query()->orderBy('name')->get(['id', 'name']);
+    }
+
+    public function refreshProfile(): void
+    {
+        $this->facultyProfile->refresh()->load(['user', 'department']);
+        $this->department_id = $this->facultyProfile->department_id;
+        $this->title = $this->facultyProfile->title ?? '';
+        $this->bio = $this->facultyProfile->bio ?? '';
+    }
+
+    public function saveProfile(): void
+    {
+        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+
+        $validated = $this->validate([
+            'department_id' => ['required', 'exists:departments,id'],
+            'title' => ['nullable', 'string', 'max:100'],
+            'bio' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $this->facultyProfile->update($validated);
+        $this->editing = false;
+        $this->refreshProfile();
+        $this->dispatch('faculty-updated');
     }
 
     #[Computed]
@@ -48,8 +90,8 @@ new #[Title('Faculty Profile')] class extends Component
             <flux:button size="sm" variant="ghost" :href="route('faculty.index')" wire:navigate icon="arrow-left">{{ __('Back') }}</flux:button>
 
             <div class="flex gap-2">
-                <flux:button variant="ghost" icon="arrow-path">{{ __('Refresh') }}</flux:button>
-                <flux:button variant="ghost" icon="pencil">{{ __('Edit') }}</flux:button>
+                <flux:button variant="ghost" icon="arrow-path" wire:click="refreshProfile">{{ __('Refresh') }}</flux:button>
+                <flux:button variant="ghost" icon="pencil" wire:click="$toggle('editing')">{{ __('Edit') }}</flux:button>
             </div>
         </div>
     </div>
@@ -63,6 +105,25 @@ new #[Title('Faculty Profile')] class extends Component
             </div>
             <span class="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">{{ __('Teacher') }}</span>
         </div>
+
+        @if ($editing)
+            <form wire:submit="saveProfile" class="mt-6 grid gap-3 md:grid-cols-2">
+                <flux:select wire:model="department_id" :label="__('Department')" required>
+                    @foreach ($this->departments as $department)
+                        <option value="{{ $department->id }}">{{ $department->name }}</option>
+                    @endforeach
+                </flux:select>
+
+                <flux:input wire:model="title" :label="__('Title')" type="text" />
+                <flux:input wire:model="bio" :label="__('Bio')" type="text" class="md:col-span-2" />
+
+                <div class="md:col-span-2 flex items-center gap-3">
+                    <flux:button variant="primary" type="submit">{{ __('Save') }}</flux:button>
+                    <flux:button variant="ghost" type="button" wire:click="$set('editing', false)">{{ __('Cancel') }}</flux:button>
+                    <x-action-message on="faculty-updated">{{ __('Updated.') }}</x-action-message>
+                </div>
+            </form>
+        @endif
     </div>
 
     <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">

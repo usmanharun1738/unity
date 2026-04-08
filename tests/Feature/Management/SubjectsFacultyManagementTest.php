@@ -4,9 +4,11 @@ namespace Tests\Feature\Management;
 
 use App\Enums\RoleName;
 use App\Models\Course;
+use App\Models\Department;
 use App\Models\FacultyProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -63,5 +65,114 @@ class SubjectsFacultyManagementTest extends TestCase
 
         $this->actingAs($student)->get(route('faculty.index'))->assertForbidden();
         $this->actingAs($student)->get(route('faculty.show', $faculty))->assertForbidden();
+    }
+
+    public function test_admin_can_create_subject_from_subjects_page(): void
+    {
+        Role::findOrCreate(RoleName::Admin->value, 'web');
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::Admin->value);
+
+        $department = Department::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('pages::subjects.index')
+            ->set('title', 'Statistics')
+            ->set('code', 'STAT101')
+            ->set('department_id', $department->id)
+            ->set('description', 'Statistics foundation')
+            ->call('createSubject')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('courses', [
+            'title' => 'Statistics',
+            'code' => 'STAT101',
+            'department_id' => $department->id,
+        ]);
+    }
+
+    public function test_admin_can_update_subject_from_subject_detail_page(): void
+    {
+        Role::findOrCreate(RoleName::Admin->value, 'web');
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::Admin->value);
+
+        $subject = Course::factory()->create([
+            'title' => 'Old Subject',
+            'description' => 'Old description',
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test('pages::subjects.show', ['course' => $subject])
+            ->set('title', 'Updated Subject')
+            ->set('description', 'Updated description')
+            ->call('saveSubject')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('courses', [
+            'id' => $subject->id,
+            'title' => 'Updated Subject',
+            'description' => 'Updated description',
+        ]);
+    }
+
+    public function test_admin_can_create_faculty_profile_from_faculty_page(): void
+    {
+        Role::findOrCreate(RoleName::Admin->value, 'web');
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::Admin->value);
+
+        $teacherUser = User::factory()->create();
+        $department = Department::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('pages::faculty.index')
+            ->set('user_id', $teacherUser->id)
+            ->set('department_id', $department->id)
+            ->set('employee_code', 'EMP-9001')
+            ->set('title', 'Professor')
+            ->set('bio', 'Teaches advanced mathematics')
+            ->call('createFacultyProfile')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('faculty_profiles', [
+            'user_id' => $teacherUser->id,
+            'department_id' => $department->id,
+            'employee_code' => 'EMP-9001',
+        ]);
+
+        $this->assertTrue($teacherUser->fresh()->hasRole(RoleName::Faculty->value));
+    }
+
+    public function test_admin_can_update_faculty_profile_from_profile_page(): void
+    {
+        Role::findOrCreate(RoleName::Admin->value, 'web');
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::Admin->value);
+
+        $faculty = FacultyProfile::factory()->create([
+            'title' => 'Lecturer',
+            'bio' => 'Original bio',
+        ]);
+        $newDepartment = Department::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('pages::faculty.show', ['facultyProfile' => $faculty])
+            ->set('department_id', $newDepartment->id)
+            ->set('title', 'Senior Lecturer')
+            ->set('bio', 'Updated bio')
+            ->call('saveProfile')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('faculty_profiles', [
+            'id' => $faculty->id,
+            'department_id' => $newDepartment->id,
+            'title' => 'Senior Lecturer',
+            'bio' => 'Updated bio',
+        ]);
     }
 }

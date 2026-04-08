@@ -11,11 +11,41 @@ new #[Title('Subject Details')] class extends Component
 {
     public Course $subject;
 
+    public bool $editing = false;
+
+    public string $title = '';
+
+    public string $description = '';
+
     public function mount(Course $course): void
     {
         abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
 
         $this->subject = $course->load(['department', 'facultyProfile.user']);
+        $this->title = $this->subject->title;
+        $this->description = $this->subject->description ?? '';
+    }
+
+    public function refreshSubject(): void
+    {
+        $this->subject->refresh()->load(['department', 'facultyProfile.user']);
+        $this->title = $this->subject->title;
+        $this->description = $this->subject->description ?? '';
+    }
+
+    public function saveSubject(): void
+    {
+        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+
+        $validated = $this->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $this->subject->update($validated);
+        $this->editing = false;
+        $this->refreshSubject();
+        $this->dispatch('subject-updated');
     }
 
     #[Computed]
@@ -52,15 +82,27 @@ new #[Title('Subject Details')] class extends Component
             <flux:button size="sm" variant="ghost" :href="route('subjects.index')" wire:navigate icon="arrow-left">{{ __('Back') }}</flux:button>
 
             <div class="flex gap-2">
-                <flux:button variant="ghost" icon="arrow-path">{{ __('Refresh') }}</flux:button>
-                <flux:button variant="ghost" icon="pencil">{{ __('Edit') }}</flux:button>
+                <flux:button variant="ghost" icon="arrow-path" wire:click="refreshSubject">{{ __('Refresh') }}</flux:button>
+                <flux:button variant="ghost" icon="pencil" wire:click="$toggle('editing')">{{ __('Edit') }}</flux:button>
             </div>
         </div>
     </div>
 
     <div class="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-        <flux:heading size="xl">{{ $subject->title }}</flux:heading>
-        <flux:text class="mt-2">{{ $subject->description ?: __('No subject overview available.') }}</flux:text>
+        @if ($editing)
+            <form wire:submit="saveSubject" class="grid gap-3">
+                <flux:input wire:model="title" :label="__('Subject name')" type="text" required />
+                <flux:input wire:model="description" :label="__('Description')" type="text" />
+                <div class="flex items-center gap-3">
+                    <flux:button variant="primary" type="submit">{{ __('Save') }}</flux:button>
+                    <flux:button variant="ghost" type="button" wire:click="$set('editing', false)">{{ __('Cancel') }}</flux:button>
+                    <x-action-message on="subject-updated">{{ __('Updated.') }}</x-action-message>
+                </div>
+            </form>
+        @else
+            <flux:heading size="xl">{{ $subject->title }}</flux:heading>
+            <flux:text class="mt-2">{{ $subject->description ?: __('No subject overview available.') }}</flux:text>
+        @endif
     </div>
 
     <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
