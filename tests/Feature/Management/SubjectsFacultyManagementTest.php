@@ -175,4 +175,47 @@ class SubjectsFacultyManagementTest extends TestCase
             'bio' => 'Updated bio',
         ]);
     }
+
+    public function test_admin_can_delete_subject_from_subject_detail_page(): void
+    {
+        Role::findOrCreate(RoleName::Admin->value, 'web');
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::Admin->value);
+
+        $subject = Course::factory()->create();
+
+        Livewire::actingAs($admin)
+            ->test('pages::subjects.show', ['course' => $subject])
+            ->call('deleteSubject')
+            ->assertRedirect(route('subjects.index'));
+
+        $this->assertDatabaseMissing('courses', [
+            'id' => $subject->id,
+        ]);
+    }
+
+    public function test_admin_can_delete_faculty_profile_from_profile_page(): void
+    {
+        Role::findOrCreate(RoleName::Admin->value, 'web');
+        Role::findOrCreate(RoleName::Faculty->value, 'web');
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::Admin->value);
+
+        $facultyUser = User::factory()->create();
+        $facultyUser->assignRole(RoleName::Faculty->value);
+        $faculty = FacultyProfile::factory()->create(['user_id' => $facultyUser->id]);
+
+        Livewire::actingAs($admin)
+            ->test('pages::faculty.show', ['facultyProfile' => $faculty])
+            ->call('deleteProfile')
+            ->assertRedirect(route('faculty.index'));
+
+        $this->assertDatabaseMissing('faculty_profiles', [
+            'id' => $faculty->id,
+        ]);
+
+        $this->assertFalse($facultyUser->fresh()->hasRole(RoleName::Faculty->value));
+    }
 }

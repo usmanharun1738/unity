@@ -1,10 +1,12 @@
 <?php
 
 use App\Enums\RoleName;
+use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Department;
 use App\Models\FacultyProfile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -13,6 +15,7 @@ use Spatie\Permission\Models\Role;
 
 new #[Title('Faculty')] class extends Component
 {
+    use HasToastFeedback;
     use WithPagination;
 
     public string $search = '';
@@ -31,7 +34,8 @@ new #[Title('Faculty')] class extends Component
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('viewAny', FacultyProfile::class);
+        $this->pullToastFromSession();
     }
 
     public function updatedSearch(): void
@@ -74,7 +78,7 @@ new #[Title('Faculty')] class extends Component
 
     public function createFacultyProfile(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('create', FacultyProfile::class);
 
         $validated = $this->validate([
             'user_id' => ['required', 'exists:users,id', 'unique:faculty_profiles,user_id'],
@@ -92,11 +96,13 @@ new #[Title('Faculty')] class extends Component
 
         $this->reset(['user_id', 'department_id', 'employee_code', 'title', 'bio', 'showCreateForm']);
         $this->title = 'Lecturer';
+        $this->successToast(__('Faculty profile created successfully.'));
         $this->dispatch('faculty-created');
     }
 }; ?>
 
 <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <div class="text-sm text-zinc-500">{{ __('Dashboard UI') }} <span class="mx-2">/</span> {{ __('Faculty') }}</div>

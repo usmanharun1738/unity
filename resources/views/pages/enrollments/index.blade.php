@@ -1,7 +1,9 @@
 <?php
 
+use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Course;
 use App\Models\Enrollment;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -9,6 +11,8 @@ use Livewire\Component;
 
 new #[Title('Enrollments')] class extends Component
 {
+    use HasToastFeedback;
+
     public ?int $course_id = null;
 
     public string $code = '';
@@ -17,6 +21,8 @@ new #[Title('Enrollments')] class extends Component
 
     public function mount(): void
     {
+        Gate::authorize('viewAny', Enrollment::class);
+        $this->pullToastFromSession();
         $this->email = auth()->user()->email;
     }
 
@@ -38,6 +44,8 @@ new #[Title('Enrollments')] class extends Component
 
     public function enroll(): void
     {
+        Gate::authorize('create', Enrollment::class);
+
         $validated = $this->validate([
             'course_id' => [
                 'required',
@@ -51,6 +59,7 @@ new #[Title('Enrollments')] class extends Component
 
         if (strcasecmp($course->code, trim($validated['code'])) !== 0) {
             $this->addError('code', __('The class code does not match the selected class.'));
+            $this->errorToast(__('Enrollment failed. Please check the class code.'));
 
             return;
         }
@@ -63,11 +72,13 @@ new #[Title('Enrollments')] class extends Component
         ]);
 
         $this->reset('course_id', 'code');
+        $this->successToast(__('Enrollment completed successfully.'));
         $this->dispatch('enrollment-created');
     }
 }; ?>
 
 <div class="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
     <div>
         <div class="text-sm text-zinc-500">{{ __('Dashboard UI') }} <span class="mx-2">/</span> {{ __('Enrollments') }}</div>
         <flux:heading size="xl" class="mt-2">{{ __('Enroll in a class') }}</flux:heading>

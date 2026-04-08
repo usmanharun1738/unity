@@ -1,8 +1,9 @@
 <?php
 
-use App\Enums\RoleName;
+use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Department;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -10,6 +11,7 @@ use Livewire\WithPagination;
 
 new #[Title('Departments')] class extends Component
 {
+    use HasToastFeedback;
     use WithPagination;
 
     public string $search = '';
@@ -24,7 +26,8 @@ new #[Title('Departments')] class extends Component
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('viewAny', Department::class);
+        $this->pullToastFromSession();
     }
 
     public function updatedSearch(): void
@@ -51,7 +54,7 @@ new #[Title('Departments')] class extends Component
 
     public function createDepartment(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('create', Department::class);
 
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -62,11 +65,13 @@ new #[Title('Departments')] class extends Component
         Department::query()->create($validated + ['is_active' => true]);
 
         $this->reset(['name', 'code', 'description', 'showCreateForm']);
+        $this->successToast(__('Department created successfully.'));
         $this->dispatch('department-created');
     }
 }; ?>
 
 <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+        <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <div class="text-sm text-zinc-500">
@@ -146,5 +151,4 @@ new #[Title('Departments')] class extends Component
         <div>
             {{ $this->departments->onEachSide(1)->links() }}
         </div>
-    </div>
 </div>

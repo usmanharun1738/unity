@@ -1,23 +1,87 @@
 <?php
 
-use App\Enums\RoleName;
+use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Department Details')] class extends Component
 {
+    use HasToastFeedback;
+
     public Department $department;
+
+    public bool $editing = false;
+
+    public string $name = '';
+
+    public string $code = '';
+
+    public string $description = '';
+
+    public bool $is_active = true;
 
     public function mount(Department $department): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
-
+        Gate::authorize('view', $department);
         $this->department = $department;
+        $this->pullToastFromSession();
+        $this->syncFormState();
+    }
+
+    public function refreshDepartment(): void
+    {
+        $this->department->refresh();
+        $this->syncFormState();
+    }
+
+    protected function syncFormState(): void
+    {
+        $this->name = $this->department->name;
+        $this->code = $this->department->code;
+        $this->description = $this->department->description ?? '';
+        $this->is_active = $this->department->is_active;
+    }
+
+    public function saveDepartment(): void
+    {
+        Gate::authorize('update', $this->department);
+
+        $validated = $this->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'code' => ['required', 'string', 'max:16', 'unique:departments,code,'.$this->department->id],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'is_active' => ['boolean'],
+        ]);
+
+        $this->department->update($validated);
+        $this->editing = false;
+        $this->refreshDepartment();
+        $this->successToast(__('Department updated successfully.'));
+    }
+
+    public function deleteDepartment(): void
+    {
+        Gate::authorize('delete', $this->department);
+
+        $hasCourses = $this->department->courses()->exists();
+        $hasFaculty = $this->department->facultyProfiles()->exists();
+
+        if ($hasCourses || $hasFaculty) {
+            $this->errorToast(__('This department has related classes or faculty and cannot be deleted yet.'));
+
+            return;
+        }
+
+        $this->successToast(__('Department deleted successfully.'), persist: true);
+        $this->department->delete();
+
+        $this->redirect(route('departments.index'), navigate: true);
     }
 
     #[Computed]
@@ -64,6 +128,7 @@ new #[Title('Department Details')] class extends Component
 }; ?>
 
 <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+        <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
         <div class="space-y-4">
             <flux:button size="sm" variant="ghost" :href="route('departments.index')" wire:navigate icon="arrow-left">
                 {{ __('Back') }}
@@ -78,11 +143,35 @@ new #[Title('Department Details')] class extends Component
                 </div>
 
                 <div class="flex gap-2">
-                    <flux:button variant="ghost" icon="arrow-path">{{ __('Refresh') }}</flux:button>
-                    <flux:button variant="ghost" icon="pencil">{{ __('Edit') }}</flux:button>
+                    <flux:button variant="ghost" icon="arrow-path" wire:click="refreshDepartment">{{ __('Refresh') }}</flux:button>
+                    <flux:button variant="ghost" icon="pencil" wire:click="$toggle('editing')">{{ __('Edit') }}</flux:button>
+                    <flux:button
+                        variant="danger"
+                        icon="trash"
+                        wire:click="deleteDepartment"
+                        wire:confirm="{{ __('Delete this department? This action cannot be undone.') }}"
+                    >
+                        {{ __('Delete') }}
+                    </flux:button>
                 </div>
             </div>
         </div>
+
+        @if ($editing)
+            <div class="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                <form wire:submit="saveDepartment" class="grid gap-4 md:grid-cols-2">
+                    <flux:input wire:model="name" :label="__('Department name')" type="text" required />
+                    <flux:input wire:model="code" :label="__('Code')" type="text" required />
+                    <flux:input wire:model="description" :label="__('Description')" type="text" class="md:col-span-2" />
+                    <flux:checkbox wire:model="is_active" :label="__('Active department')" class="md:col-span-2" />
+
+                    <div class="md:col-span-2 flex items-center gap-3">
+                        <flux:button variant="primary" type="submit">{{ __('Save') }}</flux:button>
+                        <flux:button variant="ghost" type="button" wire:click="$set('editing', false)">{{ __('Cancel') }}</flux:button>
+                    </div>
+                </form>
+            </div>
+        @endif
 
         <div class="grid gap-4 md:grid-cols-3">
             <div class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">

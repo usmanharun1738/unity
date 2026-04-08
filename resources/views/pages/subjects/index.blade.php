@@ -1,10 +1,11 @@
 <?php
 
-use App\Enums\RoleName;
+use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Course;
 use App\Models\Department;
 use App\Models\FacultyProfile;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -12,6 +13,7 @@ use Livewire\WithPagination;
 
 new #[Title('Subjects')] class extends Component
 {
+    use HasToastFeedback;
     use WithPagination;
 
     public string $search = '';
@@ -30,7 +32,8 @@ new #[Title('Subjects')] class extends Component
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('viewAny', Course::class);
+        $this->pullToastFromSession();
     }
 
     public function updatedSearch(): void
@@ -69,7 +72,7 @@ new #[Title('Subjects')] class extends Component
 
     public function createSubject(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('create', Course::class);
 
         $validated = $this->validate([
             'title' => ['required', 'string', 'max:255'],
@@ -93,11 +96,13 @@ new #[Title('Subjects')] class extends Component
             'showCreateForm',
         ]);
 
+        $this->successToast(__('Subject created successfully.'));
         $this->dispatch('subject-created');
     }
 }; ?>
 
 <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <div class="text-sm text-zinc-500">{{ __('Dashboard UI') }} <span class="mx-2">/</span> {{ __('Subjects') }}</div>

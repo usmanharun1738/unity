@@ -1,14 +1,17 @@
 <?php
 
-use App\Enums\RoleName;
+use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Course;
 use App\Models\FacultyProfile;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Subject Details')] class extends Component
 {
+    use HasToastFeedback;
+
     public Course $subject;
 
     public bool $editing = false;
@@ -19,9 +22,10 @@ new #[Title('Subject Details')] class extends Component
 
     public function mount(Course $course): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('view', $course);
 
         $this->subject = $course->load(['department', 'facultyProfile.user']);
+        $this->pullToastFromSession();
         $this->title = $this->subject->title;
         $this->description = $this->subject->description ?? '';
     }
@@ -35,7 +39,7 @@ new #[Title('Subject Details')] class extends Component
 
     public function saveSubject(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('update', $this->subject);
 
         $validated = $this->validate([
             'title' => ['required', 'string', 'max:255'],
@@ -45,7 +49,18 @@ new #[Title('Subject Details')] class extends Component
         $this->subject->update($validated);
         $this->editing = false;
         $this->refreshSubject();
+        $this->successToast(__('Subject updated successfully.'));
         $this->dispatch('subject-updated');
+    }
+
+    public function deleteSubject(): void
+    {
+        Gate::authorize('delete', $this->subject);
+
+        $this->successToast(__('Subject deleted successfully.'), persist: true);
+        $this->subject->delete();
+
+        $this->redirect(route('subjects.index'), navigate: true);
     }
 
     #[Computed]
@@ -75,6 +90,7 @@ new #[Title('Subject Details')] class extends Component
 }; ?>
 
 <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
     <div class="space-y-4">
         <div class="text-sm text-zinc-500">{{ __('Subjects') }} <span class="mx-2">/</span> {{ __('Subject Details') }}</div>
 
@@ -84,6 +100,14 @@ new #[Title('Subject Details')] class extends Component
             <div class="flex gap-2">
                 <flux:button variant="ghost" icon="arrow-path" wire:click="refreshSubject">{{ __('Refresh') }}</flux:button>
                 <flux:button variant="ghost" icon="pencil" wire:click="$toggle('editing')">{{ __('Edit') }}</flux:button>
+                <flux:button
+                    variant="danger"
+                    icon="trash"
+                    wire:click="deleteSubject"
+                    wire:confirm="{{ __('Delete this subject? This action cannot be undone.') }}"
+                >
+                    {{ __('Delete') }}
+                </flux:button>
             </div>
         </div>
     </div>

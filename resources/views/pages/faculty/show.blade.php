@@ -1,15 +1,19 @@
 <?php
 
 use App\Enums\RoleName;
+use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Course;
 use App\Models\Department;
 use App\Models\FacultyProfile;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Faculty Profile')] class extends Component
 {
+    use HasToastFeedback;
+
     public FacultyProfile $facultyProfile;
 
     public bool $editing = false;
@@ -22,9 +26,10 @@ new #[Title('Faculty Profile')] class extends Component
 
     public function mount(FacultyProfile $facultyProfile): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('view', $facultyProfile);
 
         $this->facultyProfile = $facultyProfile->load(['user', 'department']);
+        $this->pullToastFromSession();
         $this->department_id = $this->facultyProfile->department_id;
         $this->title = $this->facultyProfile->title ?? '';
         $this->bio = $this->facultyProfile->bio ?? '';
@@ -46,7 +51,7 @@ new #[Title('Faculty Profile')] class extends Component
 
     public function saveProfile(): void
     {
-        abort_unless(auth()->user()?->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]), 403);
+        Gate::authorize('update', $this->facultyProfile);
 
         $validated = $this->validate([
             'department_id' => ['required', 'exists:departments,id'],
@@ -57,7 +62,24 @@ new #[Title('Faculty Profile')] class extends Component
         $this->facultyProfile->update($validated);
         $this->editing = false;
         $this->refreshProfile();
+        $this->successToast(__('Faculty profile updated successfully.'));
         $this->dispatch('faculty-updated');
+    }
+
+    public function deleteProfile(): void
+    {
+        Gate::authorize('delete', $this->facultyProfile);
+
+        $user = $this->facultyProfile->user;
+
+        $this->facultyProfile->delete();
+
+        if ($user !== null && $user->hasRole(RoleName::Faculty->value)) {
+            $user->removeRole(RoleName::Faculty->value);
+        }
+
+        $this->successToast(__('Faculty profile deleted successfully.'), persist: true);
+        $this->redirect(route('faculty.index'), navigate: true);
     }
 
     #[Computed]
@@ -83,6 +105,7 @@ new #[Title('Faculty Profile')] class extends Component
 }; ?>
 
 <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
     <div class="space-y-4">
         <div class="text-sm text-zinc-500">{{ __('Faculty') }} <span class="mx-2">/</span> {{ __('Profile') }}</div>
 
@@ -92,6 +115,14 @@ new #[Title('Faculty Profile')] class extends Component
             <div class="flex gap-2">
                 <flux:button variant="ghost" icon="arrow-path" wire:click="refreshProfile">{{ __('Refresh') }}</flux:button>
                 <flux:button variant="ghost" icon="pencil" wire:click="$toggle('editing')">{{ __('Edit') }}</flux:button>
+                <flux:button
+                    variant="danger"
+                    icon="trash"
+                    wire:click="deleteProfile"
+                    wire:confirm="{{ __('Delete this faculty profile? This action cannot be undone.') }}"
+                >
+                    {{ __('Delete') }}
+                </flux:button>
             </div>
         </div>
     </div>
