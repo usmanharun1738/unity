@@ -69,6 +69,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'monthComparison' => $monthComparison,
         ]);
     })->name('dashboard');
+
+    Route::livewire('classes/{course}/home', 'pages::courses.home')->name('courses.home');
+    Route::livewire('classes/browse', 'pages::courses.browse')->name('courses.browse');
 });
 
 Route::middleware(['auth', 'verified', 'role:admin|department-staff'])

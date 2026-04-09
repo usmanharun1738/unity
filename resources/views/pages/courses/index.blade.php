@@ -22,6 +22,8 @@ new #[Title('Classes')] class extends Component
 
     public string $code = '';
 
+    public string $enrollment_key = '';
+
     public ?int $department_id = null;
 
     public ?int $faculty_profile_id = null;
@@ -86,6 +88,7 @@ new #[Title('Classes')] class extends Component
         $validated = $this->validate([
             'title' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:20', 'unique:courses,code'],
+            'enrollment_key' => ['required', 'string', 'max:32', 'unique:courses,enrollment_key'],
             'department_id' => ['required', 'exists:departments,id'],
             'faculty_profile_id' => ['nullable', 'exists:faculty_profiles,id'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -99,6 +102,7 @@ new #[Title('Classes')] class extends Component
         $this->reset([
             'title',
             'code',
+            'enrollment_key',
             'department_id',
             'faculty_profile_id',
             'description',
@@ -140,6 +144,7 @@ new #[Title('Classes')] class extends Component
                 <form wire:submit="createCourse" class="mt-4 grid gap-4 md:grid-cols-2">
                     <flux:input wire:model="title" :label="__('Class name')" type="text" required />
                     <flux:input wire:model="code" :label="__('Class code')" type="text" required />
+                    <flux:input wire:model="enrollment_key" :label="__('Enrollment key')" type="text" required />
 
                     <flux:select wire:model="department_id" :label="__('Department')" required>
                         <option value="">{{ __('Select department') }}</option>
@@ -182,6 +187,7 @@ new #[Title('Classes')] class extends Component
                             <th class="px-4 py-3 font-medium">{{ __('Class name') }}</th>
                             <th class="px-4 py-3 font-medium">{{ __('Subject') }}</th>
                             <th class="px-4 py-3 font-medium">{{ __('Teacher') }}</th>
+                            <th class="px-4 py-3 font-medium">{{ __('Enrollment key') }}</th>
                             <th class="px-4 py-3 font-medium">{{ __('Status') }}</th>
                             <th class="px-4 py-3 font-medium">{{ __('Capacity') }}</th>
                             <th class="px-4 py-3 font-medium text-right">{{ __('Details') }}</th>
@@ -202,6 +208,9 @@ new #[Title('Classes')] class extends Component
                                 <td class="px-4 py-3">
                                     {{ $course->facultyProfile?->user?->name ?? __('Unassigned') }}
                                 </td>
+                                <td class="px-4 py-3 text-zinc-500">
+                                    {{ $course->enrollment_key }}
+                                </td>
                                 <td class="px-4 py-3">
                                     <span class="rounded-full px-2 py-1 text-xs {{ $course->is_active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200' }}">
                                         {{ $course->is_active ? __('Active') : __('Inactive') }}
@@ -216,7 +225,7 @@ new #[Title('Classes')] class extends Component
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-4 py-8 text-center text-zinc-500">{{ __('No classes found.') }}</td>
+                                <td colspan="7" class="px-4 py-8 text-center text-zinc-500">{{ __('No classes found.') }}</td>
                             </tr>
                         @endforelse
                     </tbody>

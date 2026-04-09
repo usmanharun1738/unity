@@ -21,6 +21,8 @@ new #[Title('Class Detail')] class extends Component
 
     public string $code = '';
 
+    public string $enrollment_key = '';
+
     public ?int $department_id = null;
 
     public ?int $faculty_profile_id = null;
@@ -53,6 +55,7 @@ new #[Title('Class Detail')] class extends Component
     {
         $this->title = $this->course->title;
         $this->code = $this->course->code;
+        $this->enrollment_key = $this->course->enrollment_key ?? '';
         $this->department_id = $this->course->department_id;
         $this->faculty_profile_id = $this->course->faculty_profile_id;
         $this->description = $this->course->description ?? '';
@@ -81,6 +84,7 @@ new #[Title('Class Detail')] class extends Component
         $validated = $this->validate([
             'title' => ['required', 'string', 'max:255'],
             'code' => ['required', 'string', 'max:20', 'unique:courses,code,'.$this->course->id],
+            'enrollment_key' => ['required', 'string', 'max:32', 'unique:courses,enrollment_key,'.$this->course->id],
             'department_id' => ['required', 'exists:departments,id'],
             'faculty_profile_id' => ['nullable', 'exists:faculty_profiles,id'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -112,6 +116,18 @@ new #[Title('Class Detail')] class extends Component
         $this->redirect(route('courses.index'), navigate: true);
     }
 
+    public function toggleArchiveStatus(): void
+    {
+        Gate::authorize('update', $this->course);
+
+        $this->course->update([
+            'is_active' => ! $this->course->is_active,
+        ]);
+
+        $this->refreshCourse();
+        $this->successToast($this->course->is_active ? __('Class restored successfully.') : __('Class archived successfully.'));
+    }
+
     #[Computed]
     public function enrolledCount(): int
     {
@@ -138,6 +154,9 @@ new #[Title('Class Detail')] class extends Component
                 <div class="flex gap-2">
                     <flux:button variant="ghost" icon="arrow-path" wire:click="refreshCourse">{{ __('Refresh') }}</flux:button>
                     <flux:button variant="ghost" icon="pencil" wire:click="$toggle('editing')">{{ __('Edit') }}</flux:button>
+                    <flux:button variant="ghost" icon="archive-box" wire:click="toggleArchiveStatus">
+                        {{ $course->is_active ? __('Archive') : __('Restore') }}
+                    </flux:button>
                     <flux:button
                         variant="danger"
                         icon="trash"
@@ -155,6 +174,7 @@ new #[Title('Class Detail')] class extends Component
                 <form wire:submit="saveCourse" class="grid gap-4 md:grid-cols-2">
                     <flux:input wire:model="title" :label="__('Class name')" type="text" required />
                     <flux:input wire:model="code" :label="__('Class code')" type="text" required />
+                    <flux:input wire:model="enrollment_key" :label="__('Enrollment key')" type="text" required />
 
                     <flux:select wire:model="department_id" :label="__('Department')" required>
                         @foreach ($this->departments as $department)
@@ -217,6 +237,12 @@ new #[Title('Class Detail')] class extends Component
                         <flux:text>{{ __('Class Code') }}</flux:text>
                         <div class="mt-2 text-sm font-medium">{{ $course->code }}</div>
                         <div class="text-sm text-zinc-500">{{ __('Copy this code for enrollment requests.') }}</div>
+                    </div>
+
+                    <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                        <flux:text>{{ __('Enrollment Key') }}</flux:text>
+                        <div class="mt-2 text-sm font-medium">{{ $course->enrollment_key }}</div>
+                        <div class="text-sm text-zinc-500">{{ __('Students use this key to join the class.') }}</div>
                     </div>
 
                     <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">

@@ -1,10 +1,12 @@
 <?php
 
+use App\Actions\Courses\EnrollStudentInCourse;
 use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Course;
 use App\Models\Enrollment;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -15,7 +17,7 @@ new #[Title('Enrollments')] class extends Component
 
     public ?int $course_id = null;
 
-    public string $code = '';
+    public string $enrollment_key = '';
 
     public string $email = '';
 
@@ -52,26 +54,26 @@ new #[Title('Enrollments')] class extends Component
                 Rule::exists('courses', 'id')->where(fn ($query) => $query->where('is_active', true)),
                 Rule::unique('enrollments', 'course_id')->where(fn ($query) => $query->where('user_id', auth()->id())),
             ],
-            'code' => ['required', 'string', 'max:20'],
+            'enrollment_key' => ['required', 'string', 'max:32'],
         ]);
 
         $course = Course::query()->findOrFail($validated['course_id']);
 
-        if (strcasecmp($course->code, trim($validated['code'])) !== 0) {
-            $this->addError('code', __('The class code does not match the selected class.'));
-            $this->errorToast(__('Enrollment failed. Please check the class code.'));
+        try {
+            app(EnrollStudentInCourse::class)->handle(auth()->user(), $course, $validated['enrollment_key']);
+        } catch (ValidationException $exception) {
+            foreach ($exception->errors() as $field => $messages) {
+                foreach ($messages as $message) {
+                    $this->addError($field, $message);
+                }
+            }
+
+            $this->errorToast(__('Enrollment failed. Please check the enrollment key.'));
 
             return;
         }
 
-        Enrollment::query()->create([
-            'user_id' => auth()->id(),
-            'course_id' => $course->id,
-            'status' => 'enrolled',
-            'enrolled_at' => now(),
-        ]);
-
-        $this->reset('course_id', 'code');
+        $this->reset('course_id', 'enrollment_key');
         $this->successToast(__('Enrollment completed successfully.'));
         $this->dispatch('enrollment-created');
     }
@@ -103,7 +105,7 @@ new #[Title('Enrollments')] class extends Component
             </flux:select>
 
             <flux:input wire:model="email" :label="__('Email address')" type="email" readonly />
-            <flux:input wire:model="code" :label="__('Code')" type="text" required />
+            <flux:input wire:model="enrollment_key" :label="__('Enrollment key')" type="text" required />
 
             <div class="flex items-center gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
                 <flux:button variant="primary" type="submit" class="w-full">{{ __('Enroll now') }}</flux:button>
@@ -127,7 +129,11 @@ new #[Title('Enrollments')] class extends Component
                 <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
                     @forelse ($this->myEnrollments as $enrollment)
                         <tr>
-                            <td class="px-4 py-3 font-medium">{{ $enrollment->course?->title }}</td>
+                            <td class="px-4 py-3 font-medium">
+                                <a href="{{ route('courses.home', $enrollment->course) }}" wire:navigate class="hover:underline">
+                                    {{ $enrollment->course?->title }}
+                                </a>
+                            </td>
                             <td class="px-4 py-3">{{ $enrollment->course?->department?->name }}</td>
                             <td class="px-4 py-3">
                                 <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">{{ ucfirst($enrollment->status) }}</span>

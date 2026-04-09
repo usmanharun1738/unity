@@ -23,6 +23,7 @@ class CourseFactory extends Factory
             'department_id' => Department::factory(),
             'faculty_profile_id' => FacultyProfile::factory(),
             'code' => strtoupper(fake()->unique()->bothify('???###')),
+            'enrollment_key' => strtoupper(fake()->unique()->bothify('KEY-####')),
             'title' => fake()->sentence(3),
             'description' => fake()->paragraph(),
             'credits' => fake()->numberBetween(1, 6),

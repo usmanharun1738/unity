@@ -34,12 +34,12 @@ class EnrollmentPageTest extends TestCase
         $student = User::factory()->create();
         $student->assignRole(RoleName::Student->value);
 
-        $course = Course::factory()->create(['code' => 'JOIN101', 'is_active' => true]);
+        $course = Course::factory()->create(['code' => 'JOIN101', 'enrollment_key' => 'JOIN101-UNITY', 'is_active' => true]);
 
         Livewire::actingAs($student)
             ->test('pages::enrollments.index')
             ->set('course_id', $course->id)
-            ->set('code', 'JOIN101')
+            ->set('enrollment_key', 'JOIN101-UNITY')
             ->call('enroll')
             ->assertHasNoErrors();
 
@@ -57,12 +57,12 @@ class EnrollmentPageTest extends TestCase
         $student = User::factory()->create();
         $student->assignRole(RoleName::Student->value);
 
-        $course = Course::factory()->create(['code' => 'JOIN101', 'is_active' => true]);
+        $course = Course::factory()->create(['code' => 'JOIN101', 'enrollment_key' => 'JOIN101-UNITY', 'is_active' => true]);
 
         Livewire::actingAs($student)
             ->test('pages::enrollments.index')
             ->set('course_id', $course->id)
-            ->set('code', 'WRONG101')
+            ->set('enrollment_key', 'WRONG101')
             ->call('enroll')
             ->assertHasErrors(['code']);
 
@@ -79,7 +79,7 @@ class EnrollmentPageTest extends TestCase
         $student = User::factory()->create();
         $student->assignRole(RoleName::Student->value);
 
-        $course = Course::factory()->create(['code' => 'JOIN101', 'is_active' => true]);
+        $course = Course::factory()->create(['code' => 'JOIN101', 'enrollment_key' => 'JOIN101-UNITY', 'is_active' => true]);
 
         Enrollment::query()->create([
             'user_id' => $student->id,
@@ -91,7 +91,7 @@ class EnrollmentPageTest extends TestCase
         Livewire::actingAs($student)
             ->test('pages::enrollments.index')
             ->set('course_id', $course->id)
-            ->set('code', 'JOIN101')
+            ->set('enrollment_key', 'JOIN101-UNITY')
             ->call('enroll')
             ->assertHasErrors(['course_id']);
     }

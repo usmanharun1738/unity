@@ -133,6 +133,7 @@ class DepartmentCourseManagementTest extends TestCase
             ->test('pages::courses.index')
             ->set('title', 'Finance Basics - Section A')
             ->set('code', 'FIN101A')
+            ->set('enrollment_key', 'FIN101A-UNITY')
             ->set('department_id', $department->id)
             ->set('faculty_profile_id', $facultyProfile->id)
             ->set('description', 'Budgeting and valuation')

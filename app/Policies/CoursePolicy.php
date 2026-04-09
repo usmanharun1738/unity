@@ -20,7 +20,15 @@ class CoursePolicy
 
     public function view(User $user, Course $course): bool
     {
-        return $this->canManage($user);
+        if ($this->canManage($user)) {
+            return true;
+        }
+
+        if ($course->is_active) {
+            return true;
+        }
+
+        return $course->enrollments()->where('user_id', $user->id)->exists();
     }
 
     public function create(User $user): bool

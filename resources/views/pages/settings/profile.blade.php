@@ -1,6 +1,8 @@
 <?php
 
 use App\Concerns\ProfileValidationRules;
+use App\Enums\RoleName;
+use App\Models\StudentProfile;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
@@ -8,11 +10,21 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Profile settings')] class extends Component {
+new #[Title('Profile settings')] class extends Component
+{
     use ProfileValidationRules;
 
     public string $name = '';
+
     public string $email = '';
+
+    public string $major = '';
+
+    public ?int $year_level = null;
+
+    public string $bio = '';
+
+    public string $avatar_path = '';
 
     /**
      * Mount the component.
@@ -21,6 +33,27 @@ new #[Title('Profile settings')] class extends Component {
     {
         $this->name = Auth::user()->name;
         $this->email = Auth::user()->email;
+
+        $studentProfile = Auth::user()->studentProfile;
+
+        $this->major = $studentProfile?->major ?? '';
+        $this->year_level = $studentProfile?->year_level;
+        $this->bio = $studentProfile?->bio ?? '';
+        $this->avatar_path = $studentProfile?->avatar_path ?? '';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function rules(): array
+    {
+        return [
+            ...$this->profileRules(Auth::id()),
+            'major' => ['nullable', 'string', 'max:120'],
+            'year_level' => ['nullable', 'integer', 'between:1,8'],
+            'bio' => ['nullable', 'string', 'max:1000'],
+            'avatar_path' => ['nullable', 'string', 'max:255'],
+        ];
     }
 
     /**
@@ -30,15 +63,32 @@ new #[Title('Profile settings')] class extends Component {
     {
         $user = Auth::user();
 
-        $validated = $this->validate($this->profileRules($user->id));
+        $validated = $this->validate();
 
-        $user->fill($validated);
+        $user->fill([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+        ]);
 
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;
         }
 
         $user->save();
+
+        if ($user->hasRole(RoleName::Student->value)) {
+            StudentProfile::query()->updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'student_number' => $user->studentProfile?->student_number
+                        ?? 'STU-'.strtoupper(substr(sha1((string) $user->id.$user->email), 0, 8)),
+                    'major' => $validated['major'] !== '' ? $validated['major'] : null,
+                    'year_level' => $validated['year_level'],
+                    'bio' => $validated['bio'] !== '' ? $validated['bio'] : null,
+                    'avatar_path' => $validated['avatar_path'] !== '' ? $validated['avatar_path'] : null,
+                ],
+            );
+        }
 
         $this->dispatch('profile-updated', name: $user->name);
     }
@@ -73,6 +123,12 @@ new #[Title('Profile settings')] class extends Component {
         return ! Auth::user() instanceof MustVerifyEmail
             || (Auth::user() instanceof MustVerifyEmail && Auth::user()->hasVerifiedEmail());
     }
+
+    #[Computed]
+    public function isStudent(): bool
+    {
+        return Auth::user()->hasRole(RoleName::Student->value);
+    }
 }; ?>
 
 <section class="w-full">
@@ -80,7 +136,7 @@ new #[Title('Profile settings')] class extends Component {
 
     <flux:heading class="sr-only">{{ __('Profile settings') }}</flux:heading>
 
-    <x-pages::settings.layout :heading="__('Profile')" :subheading="__('Update your name and email address')">
+    <x-pages::settings.layout :heading="__('Profile')" :subheading="__('Update your name, email, and profile information')">
         <form wire:submit="updateProfileInformation" class="my-6 w-full space-y-6">
             <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
 
@@ -98,13 +154,30 @@ new #[Title('Profile settings')] class extends Component {
                         </flux:text>
 
                         @if (session('status') === 'verification-link-sent')
-                            <flux:text class="mt-2 font-medium !dark:text-green-400 !text-green-600">
+                            <flux:text class="mt-2 font-medium text-green-600! dark:text-green-400!">
                                 {{ __('A new verification link has been sent to your email address.') }}
                             </flux:text>
                         @endif
                     </div>
                 @endif
             </div>
+
+            @if ($this->isStudent)
+                <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                    <flux:heading size="sm">{{ __('Student Profile') }}</flux:heading>
+                    <flux:subheading class="mt-1">{{ __('Manage your academic profile details.') }}</flux:subheading>
+
+                    <div class="mt-4 grid gap-4 md:grid-cols-2">
+                        <flux:input wire:model="major" :label="__('Major')" type="text" />
+
+                        <flux:input wire:model="year_level" :label="__('Year level')" type="number" min="1" max="8" />
+
+                        <flux:input wire:model="avatar_path" :label="__('Avatar path (placeholder)')" type="text" class="md:col-span-2" />
+
+                        <flux:input wire:model="bio" :label="__('Bio')" type="text" class="md:col-span-2" />
+                    </div>
+                </div>
+            @endif
 
             <div class="flex items-center gap-4">
                 <div class="flex items-center justify-end">

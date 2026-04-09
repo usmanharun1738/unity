@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'department_id',
     'faculty_profile_id',
     'code',
+    'enrollment_key',
     'title',
     'description',
     'credits',
