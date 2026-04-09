@@ -6,13 +6,16 @@ use App\Models\StudentProfile;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new #[Title('Profile settings')] class extends Component
 {
     use ProfileValidationRules;
+    use WithFileUploads;
 
     public string $name = '';
 
@@ -25,6 +28,9 @@ new #[Title('Profile settings')] class extends Component
     public string $bio = '';
 
     public string $avatar_path = '';
+
+    /** @var mixed */
+    public $avatar_upload = null;
 
     /**
      * Mount the component.
@@ -52,7 +58,7 @@ new #[Title('Profile settings')] class extends Component
             'major' => ['nullable', 'string', 'max:120'],
             'year_level' => ['nullable', 'integer', 'between:1,8'],
             'bio' => ['nullable', 'string', 'max:1000'],
-            'avatar_path' => ['nullable', 'string', 'max:255'],
+            'avatar_upload' => ['nullable', 'image', 'max:2048'],
         ];
     }
 
@@ -76,6 +82,15 @@ new #[Title('Profile settings')] class extends Component
 
         $user->save();
 
+        if ($this->avatar_upload !== null) {
+            if ($this->avatar_path !== '' && str_starts_with($this->avatar_path, 'avatars/') && Storage::disk('public')->exists($this->avatar_path)) {
+                Storage::disk('public')->delete($this->avatar_path);
+            }
+
+            $this->avatar_path = $this->avatar_upload->store('avatars', 'public');
+            $this->avatar_upload = null;
+        }
+
         if ($user->hasRole(RoleName::Student->value)) {
             StudentProfile::query()->updateOrCreate(
                 ['user_id' => $user->id],
@@ -85,7 +100,7 @@ new #[Title('Profile settings')] class extends Component
                     'major' => $validated['major'] !== '' ? $validated['major'] : null,
                     'year_level' => $validated['year_level'],
                     'bio' => $validated['bio'] !== '' ? $validated['bio'] : null,
-                    'avatar_path' => $validated['avatar_path'] !== '' ? $validated['avatar_path'] : null,
+                    'avatar_path' => $this->avatar_path !== '' ? $this->avatar_path : null,
                 ],
             );
         }
@@ -172,7 +187,17 @@ new #[Title('Profile settings')] class extends Component
 
                         <flux:input wire:model="year_level" :label="__('Year level')" type="number" min="1" max="8" />
 
-                        <flux:input wire:model="avatar_path" :label="__('Avatar path (placeholder)')" type="text" class="md:col-span-2" />
+                        <flux:input wire:model="avatar_upload" :label="__('Avatar image')" type="file" accept="image/*" class="md:col-span-2" />
+
+                        <div class="md:col-span-2">
+                            @if ($avatar_upload)
+                                <img src="{{ $avatar_upload->temporaryUrl() }}" alt="{{ __('Avatar preview') }}" class="h-20 w-20 rounded-full object-cover" />
+                            @elseif ($avatar_path !== '')
+                                <img src="{{ Storage::disk('public')->url($avatar_path) }}" alt="{{ __('Avatar') }}" class="h-20 w-20 rounded-full object-cover" />
+                            @else
+                                <flux:text>{{ __('No avatar uploaded yet.') }}</flux:text>
+                            @endif
+                        </div>
 
                         <flux:input wire:model="bio" :label="__('Bio')" type="text" class="md:col-span-2" />
                     </div>

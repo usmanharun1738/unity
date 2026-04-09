@@ -6,6 +6,8 @@ use App\Enums\RoleName;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -110,7 +112,6 @@ class ProfileUpdateTest extends TestCase
             ->set('major', 'Computer Science')
             ->set('year_level', 3)
             ->set('bio', 'Focused on distributed systems.')
-            ->set('avatar_path', '/avatars/student-updated.png')
             ->call('updateProfileInformation')
             ->assertHasNoErrors();
 
@@ -122,7 +123,37 @@ class ProfileUpdateTest extends TestCase
             'user_id' => $student->id,
             'major' => 'Computer Science',
             'year_level' => 3,
-            'avatar_path' => '/avatars/student-updated.png',
         ]);
+    }
+
+    public function test_student_can_upload_avatar_image(): void
+    {
+        Storage::fake('public');
+        Role::findOrCreate(RoleName::Student->value, 'web');
+
+        $student = User::factory()->create();
+        $student->assignRole(RoleName::Student->value);
+
+        Storage::disk('public')->put('avatars/old-avatar.png', 'old avatar');
+
+        StudentProfile::factory()->create([
+            'user_id' => $student->id,
+            'student_number' => 'STU-000777',
+            'avatar_path' => 'avatars/old-avatar.png',
+        ]);
+
+        $this->actingAs($student);
+
+        Livewire::test('pages::settings.profile')
+            ->set('avatar_upload', UploadedFile::fake()->create('new-avatar.jpg', 128, 'image/jpeg'))
+            ->call('updateProfileInformation')
+            ->assertHasNoErrors();
+
+        $avatarPath = $student->fresh()->studentProfile?->avatar_path;
+
+        $this->assertNotNull($avatarPath);
+        $this->assertStringStartsWith('avatars/', $avatarPath);
+        $this->assertTrue(Storage::disk('public')->exists($avatarPath));
+        $this->assertFalse(Storage::disk('public')->exists('avatars/old-avatar.png'));
     }
 }

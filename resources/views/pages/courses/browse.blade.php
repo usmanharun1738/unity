@@ -23,6 +23,12 @@ new #[Title('Class Catalog')] class extends Component
 
     public bool $show_archived = false;
 
+    public string $sort_by = 'created_at';
+
+    public string $sort_direction = 'desc';
+
+    public int $per_page = 9;
+
     public function updatedSearch(): void
     {
         $this->resetPage();
@@ -45,6 +51,33 @@ new #[Title('Class Catalog')] class extends Component
 
     public function updatedShowArchived(): void
     {
+        $this->resetPage();
+    }
+
+    public function updatedSortBy(): void
+    {
+        if (! in_array($this->sort_by, ['created_at', 'title', 'code', 'semester', 'enrollments_count'], true)) {
+            $this->sort_by = 'created_at';
+        }
+
+        $this->resetPage();
+    }
+
+    public function updatedSortDirection(): void
+    {
+        if (! in_array($this->sort_direction, ['asc', 'desc'], true)) {
+            $this->sort_direction = 'desc';
+        }
+
+        $this->resetPage();
+    }
+
+    public function updatedPerPage(): void
+    {
+        if (! in_array($this->per_page, [6, 9, 12, 24], true)) {
+            $this->per_page = 9;
+        }
+
         $this->resetPage();
     }
 
@@ -102,8 +135,15 @@ new #[Title('Class Catalog')] class extends Component
             })
             ->when($this->isManager && ! $this->show_archived, fn (Builder $query) => $query->where('is_active', true))
             ->when($this->my_only, fn (Builder $query) => $query->whereHas('enrollments', fn (Builder $enrollmentQuery) => $enrollmentQuery->where('user_id', auth()->id())))
-            ->latest()
-            ->paginate(9);
+            ->orderBy(
+                in_array($this->sort_by, ['created_at', 'title', 'code', 'semester', 'enrollments_count'], true)
+                    ? $this->sort_by
+                    : 'created_at',
+                in_array($this->sort_direction, ['asc', 'desc'], true)
+                    ? $this->sort_direction
+                    : 'desc',
+            )
+            ->paginate($this->per_page);
     }
 }; ?>
 
@@ -139,6 +179,26 @@ new #[Title('Class Catalog')] class extends Component
             @foreach ($this->semesters as $semester)
                 <option value="{{ $semester }}">{{ $semester }}</option>
             @endforeach
+        </flux:select>
+
+        <flux:select wire:model.live="sort_by" :label="__('Sort by')">
+            <option value="created_at">{{ __('Newest') }}</option>
+            <option value="title">{{ __('Title') }}</option>
+            <option value="code">{{ __('Code') }}</option>
+            <option value="semester">{{ __('Semester') }}</option>
+            <option value="enrollments_count">{{ __('Enrollment count') }}</option>
+        </flux:select>
+
+        <flux:select wire:model.live="sort_direction" :label="__('Direction')">
+            <option value="desc">{{ __('Descending') }}</option>
+            <option value="asc">{{ __('Ascending') }}</option>
+        </flux:select>
+
+        <flux:select wire:model.live="per_page" :label="__('Per page')">
+            <option value="6">6</option>
+            <option value="9">9</option>
+            <option value="12">12</option>
+            <option value="24">24</option>
         </flux:select>
 
         <div class="flex flex-col justify-end gap-2">
