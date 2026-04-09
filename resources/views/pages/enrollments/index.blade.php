@@ -80,7 +80,11 @@ new #[Title('Enrollments')] class extends Component
 <div class="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6 lg:p-8">
     <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
     <div>
-        <div class="text-sm text-zinc-500">{{ __('Dashboard UI') }} <span class="mx-2">/</span> {{ __('Enrollments') }}</div>
+        <div class="text-sm text-zinc-500">
+            <a href="{{ route('dashboard') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Dashboard') }}</a>
+            <span class="mx-2">/</span>
+            <span>{{ __('Enrollments') }}</span>
+        </div>
         <flux:heading size="xl" class="mt-2">{{ __('Enroll in a class') }}</flux:heading>
         <flux:subheading>{{ __('Select a class to enroll as the current user.') }}</flux:subheading>
     </div>

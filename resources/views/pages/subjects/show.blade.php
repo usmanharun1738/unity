@@ -92,7 +92,13 @@ new #[Title('Subject Details')] class extends Component
 <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
     <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
     <div class="space-y-4">
-        <div class="text-sm text-zinc-500">{{ __('Subjects') }} <span class="mx-2">/</span> {{ __('Subject Details') }}</div>
+        <div class="text-sm text-zinc-500">
+            <a href="{{ route('dashboard') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Dashboard') }}</a>
+            <span class="mx-2">/</span>
+            <a href="{{ route('subjects.index') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Subjects') }}</a>
+            <span class="mx-2">/</span>
+            <span>{{ __('Subject Details') }}</span>
+        </div>
 
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <flux:button size="sm" variant="ghost" :href="route('subjects.index')" wire:navigate icon="arrow-left">{{ __('Back') }}</flux:button>

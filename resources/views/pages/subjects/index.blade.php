@@ -105,7 +105,11 @@ new #[Title('Subjects')] class extends Component
     <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <div class="text-sm text-zinc-500">{{ __('Dashboard UI') }} <span class="mx-2">/</span> {{ __('Subjects') }}</div>
+            <div class="text-sm text-zinc-500">
+                <a href="{{ route('dashboard') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Dashboard') }}</a>
+                <span class="mx-2">/</span>
+                <span>{{ __('Subjects') }}</span>
+            </div>
             <flux:heading size="xl" class="mt-2">{{ __('Subjects') }}</flux:heading>
             <flux:subheading>{{ __('Quick access to essential metrics and management tools.') }}</flux:subheading>
         </div>

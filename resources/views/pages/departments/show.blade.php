@@ -137,7 +137,11 @@ new #[Title('Department Details')] class extends Component
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <div class="text-sm text-zinc-500">
-                        {{ __('Departments') }} <span class="mx-2">/</span> {{ __('Department Details') }}
+                        <a href="{{ route('dashboard') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Dashboard') }}</a>
+                        <span class="mx-2">/</span>
+                        <a href="{{ route('departments.index') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Departments') }}</a>
+                        <span class="mx-2">/</span>
+                        <span>{{ __('Department Details') }}</span>
                     </div>
                     <flux:heading size="xl" class="mt-2">{{ $department->name }}</flux:heading>
                 </div>
