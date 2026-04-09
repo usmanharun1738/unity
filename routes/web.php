@@ -1,11 +1,74 @@
 <?php
 
+use App\Enums\RoleName;
+use App\Models\Course;
+use App\Models\Department;
+use App\Models\Enrollment;
+use App\Models\FacultyProfile;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'welcome')->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::view('dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', function () {
+        $now = now();
+        $startOfCurrentMonth = $now->copy()->startOfMonth();
+        $startOfPreviousMonth = $now->copy()->subMonthNoOverflow()->startOfMonth();
+        $endOfPreviousMonth = $now->copy()->subMonthNoOverflow()->endOfMonth();
+
+        $kpiCards = [
+            [
+                'label' => 'Total students',
+                'value' => User::whereHas('roles', function ($query): void {
+                    $query->where('name', RoleName::Student->value);
+                })->count(),
+            ],
+            ['label' => 'Faculty', 'value' => FacultyProfile::count()],
+            ['label' => 'Classes', 'value' => Course::count()],
+            ['label' => 'Subjects', 'value' => Course::count()],
+        ];
+
+        $departmentDistribution = Department::query()
+            ->leftJoin('courses', 'courses.department_id', '=', 'departments.id')
+            ->leftJoin('enrollments', 'enrollments.course_id', '=', 'courses.id')
+            ->select('departments.name', DB::raw('COUNT(enrollments.id) as count'))
+            ->groupBy('departments.id', 'departments.name')
+            ->orderByDesc('count')
+            ->limit(5)
+            ->get()
+            ->map(fn (object $row): array => [
+                'name' => (string) $row->name,
+                'count' => (int) $row->count,
+            ])
+            ->values()
+            ->all();
+
+        $monthlyEnrollmentCounts = collect(range(5, 0))
+            ->map(function (int $monthsAgo) use ($now): array {
+                $start = $now->copy()->subMonthsNoOverflow($monthsAgo)->startOfMonth();
+                $end = $start->copy()->endOfMonth();
+
+                return [
+                    'label' => $start->format('M'),
+                    'value' => Enrollment::whereBetween('created_at', [$start, $end])->count(),
+                ];
+            })
+            ->all();
+
+        $monthComparison = [
+            'current' => Enrollment::where('created_at', '>=', $startOfCurrentMonth)->count(),
+            'previous' => Enrollment::whereBetween('created_at', [$startOfPreviousMonth, $endOfPreviousMonth])->count(),
+        ];
+
+        return view('dashboard', [
+            'kpiCards' => $kpiCards,
+            'departmentDistribution' => $departmentDistribution,
+            'monthlyEnrollmentCounts' => $monthlyEnrollmentCounts,
+            'monthComparison' => $monthComparison,
+        ]);
+    })->name('dashboard');
 });
 
 Route::middleware(['auth', 'verified', 'role:admin|department-staff'])

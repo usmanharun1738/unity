@@ -22,6 +22,11 @@ class DashboardTest extends TestCase
         $this->actingAs($user);
 
         $response = $this->get(route('dashboard'));
-        $response->assertOk();
+        $response
+            ->assertOk()
+            ->assertSee('Unity University')
+            ->assertSee('Welcome back')
+            ->assertSee('Enrollment Trend (Last 6 Months)')
+            ->assertSee('Join Class');
     }
 }
