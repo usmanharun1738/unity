@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\RoleName;
+use App\Http\Controllers\CourseMaterialDownloadController;
 use App\Models\Course;
 use App\Models\Department;
 use App\Models\Enrollment;
@@ -38,7 +39,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->orderByDesc('count')
             ->limit(5)
             ->get()
-            ->map(fn (object $row): array => [
+            ->map(fn(object $row): array => [
                 'name' => (string) $row->name,
                 'count' => (int) $row->count,
             ])
@@ -72,6 +73,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::livewire('classes/{course}/home', 'pages::courses.home')->name('courses.home');
     Route::livewire('classes/browse', 'pages::courses.browse')->name('courses.browse');
+    Route::get('classes/{course}/materials/{material}/download', CourseMaterialDownloadController::class)
+        ->name('courses.materials.download');
 });
 
 Route::middleware(['auth', 'verified', 'role:admin|department-staff'])
@@ -94,4 +97,4 @@ Route::middleware(['auth', 'verified'])
         Route::livewire('enrollments', 'pages::enrollments.index')->name('enrollments.index');
     });
 
-require __DIR__.'/settings.php';
+require __DIR__ . '/settings.php';

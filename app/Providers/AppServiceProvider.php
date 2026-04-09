@@ -3,9 +3,13 @@
 namespace App\Providers;
 
 use App\Models\Course;
+use App\Models\CourseMaterial;
+use App\Models\CourseModule;
 use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\FacultyProfile;
+use App\Policies\CourseMaterialPolicy;
+use App\Policies\CourseModulePolicy;
 use App\Policies\CoursePolicy;
 use App\Policies\DepartmentPolicy;
 use App\Policies\EnrollmentPolicy;
@@ -34,6 +38,8 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::policy(Department::class, DepartmentPolicy::class);
         Gate::policy(Course::class, CoursePolicy::class);
+        Gate::policy(CourseModule::class, CourseModulePolicy::class);
+        Gate::policy(CourseMaterial::class, CourseMaterialPolicy::class);
         Gate::policy(FacultyProfile::class, FacultyProfilePolicy::class);
         Gate::policy(Enrollment::class, EnrollmentPolicy::class);
 

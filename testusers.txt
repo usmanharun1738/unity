@@ -1,0 +1,6 @@
+Test Accounts:
+
+Admin: admin@university.edu / password
+Department Staff: deptstaff@university.edu / password
+Faculty: 10 professors/lecturers (e.g., alice@university.edu, bob@university.edu, etc.) / password
+Students: 30 students (student1@university.edu through student30@university.edu) / password

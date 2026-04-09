@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'enrollment_key',
     'title',
     'description',
+    'syllabus_content',
+    'syllabus_updated_at',
     'credits',
     'semester',
     'capacity',
@@ -26,6 +28,17 @@ class Course extends Model
 {
     /** @use HasFactory<CourseFactory> */
     use HasFactory;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'syllabus_updated_at' => 'datetime',
+            'is_active' => 'boolean',
+        ];
+    }
 
     public function department(): BelongsTo
     {
@@ -40,6 +53,16 @@ class Course extends Model
     public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);
+    }
+
+    public function modules(): HasMany
+    {
+        return $this->hasMany(CourseModule::class)->orderBy('position')->orderBy('id');
+    }
+
+    public function materials(): HasMany
+    {
+        return $this->hasMany(CourseMaterial::class);
     }
 
     public function students(): BelongsToMany
