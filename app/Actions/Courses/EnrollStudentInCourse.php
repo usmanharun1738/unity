@@ -11,6 +11,12 @@ class EnrollStudentInCourse
 {
     public function handle(User $user, Course $course, string $enrollmentKey): Enrollment
     {
+        if (! $user->studentProfile()->exists()) {
+            throw ValidationException::withMessages([
+                'user_id' => __('Only students can enroll in courses.'),
+            ]);
+        }
+
         if (! $course->is_active) {
             throw ValidationException::withMessages([
                 'course_id' => __('This class is archived and is not available for enrollment.'),

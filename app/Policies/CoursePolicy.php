@@ -13,6 +13,11 @@ class CoursePolicy
         return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]);
     }
 
+    protected function isInstructor(User $user, Course $course): bool
+    {
+        return $course->faculty_profile_id && $course->facultyProfile?->user_id === $user->id;
+    }
+
     public function viewAny(User $user): bool
     {
         return $this->canManage($user);
@@ -21,6 +26,10 @@ class CoursePolicy
     public function view(User $user, Course $course): bool
     {
         if ($this->canManage($user)) {
+            return true;
+        }
+
+        if ($this->isInstructor($user, $course)) {
             return true;
         }
 
@@ -38,7 +47,7 @@ class CoursePolicy
 
     public function update(User $user, Course $course): bool
     {
-        return $this->canManage($user);
+        return $this->canManage($user) || $this->isInstructor($user, $course);
     }
 
     public function delete(User $user, Course $course): bool

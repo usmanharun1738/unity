@@ -25,7 +25,7 @@ class EnrollmentPolicy
 
     public function create(User $user): bool
     {
-        return $user->exists;
+        return $user->studentProfile()->exists();
     }
 
     public function update(User $user, Enrollment $enrollment): bool

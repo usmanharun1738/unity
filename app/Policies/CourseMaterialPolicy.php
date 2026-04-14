@@ -8,6 +8,11 @@ use App\Models\User;
 
 class CourseMaterialPolicy
 {
+    protected function isInstructorOfMaterial(User $user, CourseMaterial $courseMaterial): bool
+    {
+        return $courseMaterial->course?->facultyProfile?->user_id === $user->id;
+    }
+
     public function viewAny(User $user): bool
     {
         return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value, RoleName::Student->value]);
@@ -16,6 +21,10 @@ class CourseMaterialPolicy
     public function view(User $user, CourseMaterial $courseMaterial): bool
     {
         if ($user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value])) {
+            return true;
+        }
+
+        if ($this->isInstructorOfMaterial($user, $courseMaterial)) {
             return true;
         }
 
@@ -29,12 +38,14 @@ class CourseMaterialPolicy
 
     public function update(User $user, CourseMaterial $courseMaterial): bool
     {
-        return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]);
+        return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value])
+            || $this->isInstructorOfMaterial($user, $courseMaterial);
     }
 
     public function delete(User $user, CourseMaterial $courseMaterial): bool
     {
-        return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]);
+        return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value])
+            || $this->isInstructorOfMaterial($user, $courseMaterial);
     }
 
     public function download(User $user, CourseMaterial $courseMaterial): bool

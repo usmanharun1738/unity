@@ -44,6 +44,12 @@ new #[Title('Enrollments')] class extends Component
             ->get();
     }
 
+    #[Computed]
+    public function canSelfEnroll(): bool
+    {
+        return auth()->user()->studentProfile()->exists();
+    }
+
     public function enroll(): void
     {
         Gate::authorize('create', Enrollment::class);
@@ -91,28 +97,34 @@ new #[Title('Enrollments')] class extends Component
         <flux:subheading>{{ __('Select a class to enroll as the current user.') }}</flux:subheading>
     </div>
 
-    <div class="mx-auto w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-700">
-            <flux:heading size="lg">{{ __('Enrollment Form') }}</flux:heading>
-        </div>
-
-        <form wire:submit="enroll" class="space-y-4 p-5">
-            <flux:select wire:model="course_id" :label="__('Class')" required>
-                <option value="">{{ __('Select class') }}</option>
-                @foreach ($this->courses as $course)
-                    <option value="{{ $course->id }}">{{ $course->title }}</option>
-                @endforeach
-            </flux:select>
-
-            <flux:input wire:model="email" :label="__('Email address')" type="email" readonly />
-            <flux:input wire:model="enrollment_key" :label="__('Enrollment key')" type="text" required />
-
-            <div class="flex items-center gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
-                <flux:button variant="primary" type="submit" class="w-full">{{ __('Enroll now') }}</flux:button>
-                <x-action-message on="enrollment-created">{{ __('Enrolled.') }}</x-action-message>
+    @if ($this->canSelfEnroll)
+        <div class="mx-auto w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="border-b border-zinc-200 px-5 py-4 dark:border-zinc-700">
+                <flux:heading size="lg">{{ __('Enrollment Form') }}</flux:heading>
             </div>
-        </form>
-    </div>
+
+            <form wire:submit="enroll" class="space-y-4 p-5">
+                <flux:select wire:model="course_id" :label="__('Class')" required>
+                    <option value="">{{ __('Select class') }}</option>
+                    @foreach ($this->courses as $course)
+                        <option value="{{ $course->id }}">{{ $course->title }}</option>
+                    @endforeach
+                </flux:select>
+
+                <flux:input wire:model="email" :label="__('Email address')" type="email" readonly />
+                <flux:input wire:model="enrollment_key" :label="__('Enrollment key')" type="text" required />
+
+                <div class="flex items-center gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                    <flux:button variant="primary" type="submit" class="w-full">{{ __('Enroll now') }}</flux:button>
+                    <x-action-message on="enrollment-created">{{ __('Enrolled.') }}</x-action-message>
+                </div>
+            </form>
+        </div>
+    @else
+        <div class="mx-auto w-full max-w-2xl rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
+            {{ __('Self-enrollment is only available for student accounts.') }}
+        </div>
+    @endif
 
     <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
         <div class="border-b border-zinc-200 px-4 py-3 dark:border-zinc-700"><flux:heading size="lg">{{ __('My Enrollments') }}</flux:heading></div>

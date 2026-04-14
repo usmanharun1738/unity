@@ -8,6 +8,11 @@ use App\Models\User;
 
 class CourseModulePolicy
 {
+    protected function isInstructorOfModule(User $user, CourseModule $courseModule): bool
+    {
+        return $courseModule->course?->facultyProfile?->user_id === $user->id;
+    }
+
     public function viewAny(User $user): bool
     {
         return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value, RoleName::Student->value]);
@@ -16,6 +21,10 @@ class CourseModulePolicy
     public function view(User $user, CourseModule $courseModule): bool
     {
         if ($user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value])) {
+            return true;
+        }
+
+        if ($this->isInstructorOfModule($user, $courseModule)) {
             return true;
         }
 
@@ -29,11 +38,13 @@ class CourseModulePolicy
 
     public function update(User $user, CourseModule $courseModule): bool
     {
-        return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]);
+        return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value])
+            || $this->isInstructorOfModule($user, $courseModule);
     }
 
     public function delete(User $user, CourseModule $courseModule): bool
     {
-        return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]);
+        return $user->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value])
+            || $this->isInstructorOfModule($user, $courseModule);
     }
 }

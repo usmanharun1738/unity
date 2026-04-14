@@ -7,6 +7,8 @@ use App\Models\Course;
 use App\Models\CourseMaterial;
 use App\Models\CourseModule;
 use App\Models\Enrollment;
+use App\Models\FacultyProfile;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -32,9 +34,11 @@ class CourseContentDeliveryTest extends TestCase
 
         $student = User::factory()->create();
         $student->assignRole(RoleName::Student->value);
+        StudentProfile::factory()->create(['user_id' => $student->id]);
 
         $nonEnrolledStudent = User::factory()->create();
         $nonEnrolledStudent->assignRole(RoleName::Student->value);
+        StudentProfile::factory()->create(['user_id' => $nonEnrolledStudent->id]);
 
         $course = Course::factory()->create(['is_active' => true]);
 
@@ -111,14 +115,14 @@ class CourseContentDeliveryTest extends TestCase
             'title' => 'Week 3',
         ]);
 
-        Storage::disk('local')->put('course-materials/' . $course->id . '/modules/' . $module->id . '/week3.pdf', 'week 3 content');
+        Storage::disk('local')->put('course-materials/'.$course->id.'/modules/'.$module->id.'/week3.pdf', 'week 3 content');
 
         $material = CourseMaterial::factory()->create([
             'course_id' => $course->id,
             'course_module_id' => $module->id,
             'uploaded_by' => $student->id,
             'title' => 'Week 3 PDF',
-            'file_path' => 'course-materials/' . $course->id . '/modules/' . $module->id . '/week3.pdf',
+            'file_path' => 'course-materials/'.$course->id.'/modules/'.$module->id.'/week3.pdf',
             'original_name' => 'week3.pdf',
             'mime_type' => 'application/pdf',
             'is_syllabus' => false,
@@ -139,14 +143,14 @@ class CourseContentDeliveryTest extends TestCase
             'title' => 'Week 4',
         ]);
 
-        Storage::disk('local')->put('course-materials/' . $course->id . '/modules/' . $module->id . '/week4.pdf', 'week 4 content');
+        Storage::disk('local')->put('course-materials/'.$course->id.'/modules/'.$module->id.'/week4.pdf', 'week 4 content');
 
         $material = CourseMaterial::factory()->create([
             'course_id' => $course->id,
             'course_module_id' => $module->id,
             'uploaded_by' => $student->id,
             'title' => 'Week 4 PDF',
-            'file_path' => 'course-materials/' . $course->id . '/modules/' . $module->id . '/week4.pdf',
+            'file_path' => 'course-materials/'.$course->id.'/modules/'.$module->id.'/week4.pdf',
             'original_name' => 'week4.pdf',
             'mime_type' => 'application/pdf',
             'is_syllabus' => false,
@@ -157,5 +161,50 @@ class CourseContentDeliveryTest extends TestCase
             ->assertForbidden();
 
         $this->assertTrue(Storage::disk('local')->exists($material->file_path));
+    }
+
+    public function test_instructor_can_manage_content_for_assigned_course(): void
+    {
+        Storage::fake('local');
+
+        Role::findOrCreate(RoleName::Faculty->value, 'web');
+
+        $instructor = User::factory()->create();
+        $instructor->assignRole(RoleName::Faculty->value);
+
+        $facultyProfile = FacultyProfile::factory()->create([
+            'user_id' => $instructor->id,
+        ]);
+
+        $course = Course::factory()->create([
+            'faculty_profile_id' => $facultyProfile->id,
+            'is_active' => true,
+        ]);
+
+        Livewire::actingAs($instructor)
+            ->test('pages::courses.home', ['course' => $course])
+            ->set('module_title', 'Week 1 - Instructor Module')
+            ->set('module_week_number', 1)
+            ->set('module_position', 1)
+            ->call('createModule')
+            ->assertHasNoErrors();
+
+        $module = CourseModule::query()->where('course_id', $course->id)->firstOrFail();
+
+        Livewire::actingAs($instructor)
+            ->test('pages::courses.home', ['course' => $course])
+            ->set('material_module_id', $module->id)
+            ->set('material_title', 'Instructor Upload')
+            ->set('material_description', 'Uploaded by assigned instructor')
+            ->set('material_file', UploadedFile::fake()->create('instructor-notes.pdf', 128, 'application/pdf'))
+            ->call('uploadModuleMaterial')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('course_materials', [
+            'course_id' => $course->id,
+            'course_module_id' => $module->id,
+            'title' => 'Instructor Upload',
+            'uploaded_by' => $instructor->id,
+        ]);
     }
 }

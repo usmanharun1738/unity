@@ -1,12 +1,15 @@
 <?php
 
 use App\Actions\Courses\EnrollStudentInCourse;
+use App\Actions\Courses\EnrollStudentInCourseByInstructor;
+use App\Actions\Courses\GenerateEnrollmentKey;
 use App\Enums\RoleName;
 use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Course;
 use App\Models\CourseMaterial;
 use App\Models\CourseModule;
 use App\Models\Enrollment;
+use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -50,6 +53,8 @@ new #[Title('Course Home')] class extends Component
     /** @var mixed */
     public $syllabus_file = null;
 
+    public string $add_student_email = '';
+
     public function mount(Course $course): void
     {
         Gate::authorize('view', $course);
@@ -73,12 +78,25 @@ new #[Title('Course Home')] class extends Component
     public function isManager(): bool
     {
         return auth()->user()->hasAnyRole([RoleName::Admin->value, RoleName::DepartmentStaff->value]);
+
+    }
+
+    #[Computed]
+    public function isInstructor(): bool
+    {
+        return $this->course->faculty_profile_id && $this->course->facultyProfile?->user_id === auth()->id();
     }
 
     #[Computed]
     public function canAccessLearningContent(): bool
     {
-        return $this->isManager || $this->isEnrolled;
+        return $this->isManager || $this->isInstructor || $this->isEnrolled;
+    }
+
+    #[Computed]
+    public function canManageCourse(): bool
+    {
+        return $this->isManager || $this->isInstructor;
     }
 
     #[Computed]
@@ -272,8 +290,64 @@ new #[Title('Course Home')] class extends Component
         $this->refreshCourse();
         $this->successToast(__('Module deleted.'));
     }
-}; ?>
 
+    public function generateEnrollmentKey(): void
+    {
+        Gate::authorize('update', $this->course);
+
+        app(GenerateEnrollmentKey::class)->handle($this->course);
+        $this->refreshCourse();
+        $this->successToast(__('Enrollment key generated successfully.'));
+    }
+
+    public function addStudentByEmail(): void
+    {
+        Gate::authorize('update', $this->course);
+
+        $validated = $this->validate([
+            'add_student_email' => ['required', 'email', 'exists:users,email'],
+        ]);
+
+        $student = User::query()->where('email', $validated['add_student_email'])->firstOrFail();
+
+        try {
+            app(EnrollStudentInCourseByInstructor::class)->handle($this->course, $student);
+        } catch (ValidationException $exception) {
+            foreach ($exception->errors() as $field => $messages) {
+                foreach ($messages as $message) {
+                    $this->addError('add_student_email', $message);
+                }
+            }
+
+            $this->errorToast(__('Failed to enroll student.'));
+
+            return;
+        }
+
+        $this->reset('add_student_email');
+        $this->refreshCourse();
+        $this->successToast(__('Student enrolled successfully.'));
+    }
+
+    public function removeStudent(int $enrollmentId): void
+    {
+        Gate::authorize('update', $this->course);
+
+        $enrollment = Enrollment::query()
+            ->where('course_id', $this->course->id)
+            ->findOrFail($enrollmentId);
+
+        $enrollment->delete();
+        $this->refreshCourse();
+        $this->successToast(__('Student removed from course.'));
+    }
+
+    #[Computed]
+    public function enrolledStudents()
+    {
+        return $this->course->students()->get();
+    }
+}; ?>
 <div class="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6 lg:p-8">
     <x-ui.toast :message="$toastMessage" :variant="$toastVariant" />
 
@@ -292,7 +366,7 @@ new #[Title('Course Home')] class extends Component
                 <flux:subheading>{{ $course->department?->name }} · {{ $course->code }}</flux:subheading>
             </div>
 
-            @if (auth()->user()->hasAnyRole(['admin', 'department-staff']))
+            @if ($this->canManageCourse)
                 <flux:button variant="ghost" :href="route('courses.show', $course)" wire:navigate>
                     {{ __('Manage class') }}
                 </flux:button>
@@ -361,7 +435,7 @@ new #[Title('Course Home')] class extends Component
             </div>
 
             @if ($this->canAccessLearningContent)
-                <div class="mt-3 text-sm text-zinc-600 dark:text-zinc-300 whitespace-pre-line">{{ $course->syllabus_content ?: __('No syllabus published yet.') }}</div>
+                <div class="mt-3 whitespace-pre-line text-sm text-zinc-600 dark:text-zinc-300">{{ $course->syllabus_content ?: __('No syllabus published yet.') }}</div>
 
                 @if ($this->syllabusFiles->isNotEmpty())
                     <div class="mt-4 space-y-2">
@@ -375,7 +449,7 @@ new #[Title('Course Home')] class extends Component
                                     <flux:button size="sm" variant="ghost" :href="route('courses.materials.download', [$course, $material])">
                                         {{ __('Download') }}
                                     </flux:button>
-                                    @if ($this->isManager)
+                                    @if ($this->canManageCourse)
                                         <flux:button size="sm" variant="danger" wire:click="deleteMaterial({{ $material->id }})" wire:confirm="{{ __('Delete this file?') }}">
                                             {{ __('Delete') }}
                                         </flux:button>
@@ -391,7 +465,7 @@ new #[Title('Course Home')] class extends Component
                 </div>
             @endif
 
-            @if ($this->isManager)
+            @if ($this->canManageCourse)
                 <div class="mt-4 grid gap-4 md:grid-cols-2">
                     <form wire:submit="saveSyllabus" class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700 md:col-span-2">
                         <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Syllabus content') }}</label>
@@ -414,7 +488,7 @@ new #[Title('Course Home')] class extends Component
             <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">{{ __('Modules & Learning Materials') }}</h2>
 
             @if ($this->canAccessLearningContent)
-                @if ($this->isManager)
+                @if ($this->canManageCourse)
                     <div class="mt-4 grid gap-4 md:grid-cols-2">
                         <form wire:submit="createModule" class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
                             <flux:heading size="sm">{{ __('Create module') }}</flux:heading>
@@ -451,7 +525,7 @@ new #[Title('Course Home')] class extends Component
                                         {{ $module->week_number ? __('Week :week', ['week' => $module->week_number]) : __('No week assigned') }}
                                     </div>
                                 </div>
-                                @if ($this->isManager)
+                                @if ($this->canManageCourse)
                                     <flux:button size="sm" variant="danger" wire:click="deleteModule({{ $module->id }})" wire:confirm="{{ __('Delete this module and all its files?') }}">
                                         {{ __('Delete module') }}
                                     </flux:button>
@@ -473,7 +547,7 @@ new #[Title('Course Home')] class extends Component
                                             <flux:button size="sm" variant="ghost" :href="route('courses.materials.download', [$course, $material])">
                                                 {{ __('Download') }}
                                             </flux:button>
-                                            @if ($this->isManager)
+                                            @if ($this->canManageCourse)
                                                 <flux:button size="sm" variant="danger" wire:click="deleteMaterial({{ $material->id }})" wire:confirm="{{ __('Delete this file?') }}">
                                                     {{ __('Delete') }}
                                                 </flux:button>
@@ -497,5 +571,68 @@ new #[Title('Course Home')] class extends Component
                 </div>
             @endif
         </div>
+
+        @if ($this->canManageCourse)
+            <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">{{ __('Enrollment Management') }}</h2>
+
+                <div class="mt-4 space-y-6">
+                    <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <flux:button size="sm" wire:click="generateEnrollmentKey" wire:confirm="{{ __('Generate a new enrollment key? The current key will no longer work.') }}">
+                                {{ __('Generate key') }}
+                            </flux:button>
+                        </div>
+
+                        @if ($course->enrollment_key)
+                            <div class="mt-4 flex flex-col gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                                <div class="text-xs font-medium text-emerald-700 dark:text-emerald-200">{{ __('Current enrollment key') }}</div>
+                                <div class="font-mono text-lg font-semibold text-emerald-900 dark:text-emerald-100">{{ $course->enrollment_key }}</div>
+                            </div>
+                        @else
+                            <div class="mt-4 text-sm text-zinc-500">{{ __('No enrollment key generated yet. Generate one to allow students to self-enroll.') }}</div>
+                        @endif
+                    </div>
+
+                    <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                        <h3 class="font-medium text-zinc-900 dark:text-zinc-100">{{ __('Add student by email') }}</h3>
+                        <p class="mt-1 text-sm text-zinc-500">{{ __('Enroll a student directly without requiring an enrollment key.') }}</p>
+
+                        <form wire:submit="addStudentByEmail" class="mt-4 space-y-3">
+                            <flux:input wire:model="add_student_email" :label="__('Student email')" type="email" required />
+                            <flux:button variant="primary" type="submit" class="w-full">{{ __('Enroll student') }}</flux:button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">{{ __('Enrolled Students') }}</h2>
+
+                <div class="mt-4 space-y-2">
+                    @forelse ($this->enrolledStudents as $student)
+                        <div class="flex flex-col gap-2 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <div class="text-sm font-medium text-zinc-900 dark:text-zinc-100">{{ $student->name }}</div>
+                                <div class="text-xs text-zinc-500">{{ $student->email }}</div>
+                            </div>
+                            @php
+                                $enrollment = $student->enrollments()->where('course_id', $course->id)->first();
+                            @endphp
+                            @if ($enrollment)
+                                <flux:button size="sm" variant="danger" wire:click="removeStudent({{ $enrollment->id }})" wire:confirm="{{ __('Remove this student from the course?') }}">
+                                    {{ __('Remove') }}
+                                </flux:button>
+                            @endif
+                        </div>
+                    @empty
+                        <div class="rounded-xl border border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-700">
+                            {{ __('No students enrolled yet.') }}
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+        @endif
     </div>
 </div>
+
