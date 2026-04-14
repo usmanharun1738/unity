@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use League\Flysystem\UnableToRetrieveMetadata;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -188,13 +189,30 @@ new #[Title('Course Home')] class extends Component
     {
         Gate::authorize('update', $this->course);
 
-        $validated = $this->validate([
-            'syllabus_file_title' => ['required', 'string', 'max:150'],
-            'syllabus_file_description' => ['nullable', 'string', 'max:400'],
-            'syllabus_file' => ['required', 'file', 'max:10240'],
-        ]);
+        try {
+            $validated = $this->validate([
+                'syllabus_file_title' => ['required', 'string', 'max:150'],
+                'syllabus_file_description' => ['nullable', 'string', 'max:400'],
+                'syllabus_file' => ['required', 'file', 'max:10240'],
+            ]);
+        } catch (UnableToRetrieveMetadata $exception) {
+            $this->reset('syllabus_file');
+            $this->addError('syllabus_file', __('The selected file is no longer available. Please choose it again.'));
+            $this->errorToast(__('Upload session expired. Please select the file again.'));
 
+            return;
+        }
+
+        $originalName = $this->syllabus_file->getClientOriginalName();
+        $mimeType = $this->syllabus_file->getClientMimeType();
         $path = $this->syllabus_file->store('course-materials/'.$this->course->id.'/syllabus', 'local');
+
+        $sizeBytes = 0;
+        try {
+            $sizeBytes = Storage::disk('local')->size($path);
+        } catch (UnableToRetrieveMetadata $exception) {
+            $sizeBytes = 0;
+        }
 
         CourseMaterial::query()->create([
             'course_id' => $this->course->id,
@@ -203,9 +221,9 @@ new #[Title('Course Home')] class extends Component
             'title' => $validated['syllabus_file_title'],
             'description' => $validated['syllabus_file_description'] !== '' ? $validated['syllabus_file_description'] : null,
             'file_path' => $path,
-            'original_name' => $this->syllabus_file->getClientOriginalName(),
-            'mime_type' => $this->syllabus_file->getClientMimeType(),
-            'size_bytes' => $this->syllabus_file->getSize() ?? 0,
+            'original_name' => $originalName,
+            'mime_type' => $mimeType,
+            'size_bytes' => $sizeBytes,
             'is_syllabus' => true,
         ]);
 
@@ -218,18 +236,35 @@ new #[Title('Course Home')] class extends Component
     {
         Gate::authorize('update', $this->course);
 
-        $validated = $this->validate([
-            'material_title' => ['required', 'string', 'max:150'],
-            'material_description' => ['nullable', 'string', 'max:400'],
-            'material_module_id' => ['required', 'exists:course_modules,id'],
-            'material_file' => ['required', 'file', 'max:10240'],
-        ]);
+        try {
+            $validated = $this->validate([
+                'material_title' => ['required', 'string', 'max:150'],
+                'material_description' => ['nullable', 'string', 'max:400'],
+                'material_module_id' => ['required', 'exists:course_modules,id'],
+                'material_file' => ['required', 'file', 'max:10240'],
+            ]);
+        } catch (UnableToRetrieveMetadata $exception) {
+            $this->reset('material_file');
+            $this->addError('material_file', __('The selected file is no longer available. Please choose it again.'));
+            $this->errorToast(__('Upload session expired. Please select the file again.'));
+
+            return;
+        }
 
         $module = CourseModule::query()
             ->where('course_id', $this->course->id)
             ->findOrFail((int) $validated['material_module_id']);
 
+        $originalName = $this->material_file->getClientOriginalName();
+        $mimeType = $this->material_file->getClientMimeType();
         $path = $this->material_file->store('course-materials/'.$this->course->id.'/modules/'.$module->id, 'local');
+
+        $sizeBytes = 0;
+        try {
+            $sizeBytes = Storage::disk('local')->size($path);
+        } catch (UnableToRetrieveMetadata $exception) {
+            $sizeBytes = 0;
+        }
 
         CourseMaterial::query()->create([
             'course_id' => $this->course->id,
@@ -238,9 +273,9 @@ new #[Title('Course Home')] class extends Component
             'title' => $validated['material_title'],
             'description' => $validated['material_description'] !== '' ? $validated['material_description'] : null,
             'file_path' => $path,
-            'original_name' => $this->material_file->getClientOriginalName(),
-            'mime_type' => $this->material_file->getClientMimeType(),
-            'size_bytes' => $this->material_file->getSize() ?? 0,
+            'original_name' => $originalName,
+            'mime_type' => $mimeType,
+            'size_bytes' => $sizeBytes,
             'is_syllabus' => false,
         ]);
 
