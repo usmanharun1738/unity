@@ -19,7 +19,7 @@ new #[Title('Class Catalog')] class extends Component
 
     public string $semester = '';
 
-    public bool $my_only = false;
+    public bool $my_only = true;
 
     public bool $show_archived = false;
 
@@ -165,7 +165,13 @@ new #[Title('Class Catalog')] class extends Component
     </div>
 
     <div class="grid gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 md:grid-cols-5">
-        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search classes')" class="md:col-span-2" />
+        <flux:input
+            wire:model.live.debounce.300ms="search"
+            icon="magnifying-glass"
+            :label="__('Search')"
+            :placeholder="__('Search classes')"
+            class="md:col-span-2"
+        />
 
         <flux:select wire:model.live="department_id" :label="__('Department')">
             <option value="">{{ __('All departments') }}</option>

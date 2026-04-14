@@ -52,6 +52,12 @@ class BrowseCourseCatalogTest extends TestCase
 
         Enrollment::factory()->create([
             'user_id' => $student->id,
+            'course_id' => $active->id,
+            'status' => 'enrolled',
+        ]);
+
+        Enrollment::factory()->create([
+            'user_id' => $student->id,
             'course_id' => $archivedEnrolled->id,
             'status' => 'enrolled',
         ]);
@@ -111,6 +117,7 @@ class BrowseCourseCatalogTest extends TestCase
 
         Livewire::actingAs($manager)
             ->test('pages::courses.browse')
+            ->set('my_only', false)
             ->assertSeeText($active->title)
             ->assertDontSeeText($archived->title)
             ->set('show_archived', true)
@@ -131,6 +138,7 @@ class BrowseCourseCatalogTest extends TestCase
 
         Livewire::actingAs($student)
             ->test('pages::courses.browse')
+            ->set('my_only', false)
             ->set('sort_by', 'title')
             ->set('sort_direction', 'asc')
             ->set('per_page', 6)
@@ -140,6 +148,7 @@ class BrowseCourseCatalogTest extends TestCase
 
         Livewire::actingAs($student)
             ->test('pages::courses.browse')
+            ->set('my_only', false)
             ->set('sort_by', 'title')
             ->set('sort_direction', 'desc')
             ->set('per_page', 6)
