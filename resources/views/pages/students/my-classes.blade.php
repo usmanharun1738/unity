@@ -22,7 +22,7 @@
             placeholder="{{ __('All my courses') }}"
         >
             @foreach ($this->myCourses as $course)
-                <flux:option value="{{ $course->id }}">{{ $course->title }}</flux:option>
+                <option value="{{ $course->id }}">{{ $course->title }}</option>
             @endforeach
         </flux:select>
     </div>
@@ -32,9 +32,9 @@
         <div class="flex items-center gap-2">
             <span class="text-sm text-zinc-600 dark:text-zinc-400">{{ __('Sort by') }}</span>
             <flux:select wire:model.live="sort_by" size="sm" class="w-32">
-                <flux:option value="name">{{ __('Name') }}</flux:option>
-                <flux:option value="student_number">{{ __('Student Number') }}</flux:option>
-                <flux:option value="enrolled_at">{{ __('Enrollment Date') }}</flux:option>
+                <option value="name">{{ __('Name') }}</option>
+                <option value="student_number">{{ __('Student Number') }}</option>
+                <option value="enrolled_at">{{ __('Enrollment Date') }}</option>
             </flux:select>
             <flux:button
                 size="sm"
@@ -45,10 +45,10 @@
         </div>
 
         <flux:select wire:model.live="per_page" size="sm" class="w-24">
-            <flux:option value="10">10</flux:option>
-            <flux:option value="15">15</flux:option>
-            <flux:option value="25">25</flux:option>
-            <flux:option value="50">50</flux:option>
+            <option value="10">10</option>
+            <option value="15">15</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
         </flux:select>
     </div>
 

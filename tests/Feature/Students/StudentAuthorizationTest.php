@@ -262,4 +262,18 @@ class StudentAuthorizationTest extends TestCase
             ->get(route('students.my-classes'))
             ->assertForbidden();
     }
+
+    public function test_admin_can_render_students_directory(): void
+    {
+        Role::findOrCreate(RoleName::Admin->value, 'web');
+        $this->ensurePermissions(['students.view-any']);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::Admin->value);
+        $admin->givePermissionTo('students.view-any');
+
+        $this->actingAs($admin)
+            ->get(route('students.directory'))
+            ->assertOk();
+    }
 }
