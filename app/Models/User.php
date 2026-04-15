@@ -69,4 +69,34 @@ class User extends Authenticatable
             ->withPivot(['status', 'enrolled_at'])
             ->withTimestamps();
     }
+
+    public function grades(): HasMany
+    {
+        return $this->hasMany(Grade::class);
+    }
+
+    public function attendanceRecords(): HasMany
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    public function assignmentSubmissions(): HasMany
+    {
+        return $this->hasMany(AssignmentSubmission::class);
+    }
+
+    public function quizResponses(): HasMany
+    {
+        return $this->hasMany(QuizResponse::class);
+    }
+
+    public function assessmentLogs(): HasMany
+    {
+        return $this->hasMany(AssessmentLog::class);
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(ActivityLog::class);
+    }
 }

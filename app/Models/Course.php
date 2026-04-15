@@ -71,4 +71,29 @@ class Course extends Model
             ->withPivot(['status', 'enrolled_at'])
             ->withTimestamps();
     }
+
+    public function grades(): HasMany
+    {
+        return $this->hasMany(Grade::class);
+    }
+
+    public function attendanceRecords(): HasMany
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(Assignment::class)->orderBy('display_order');
+    }
+
+    public function quizzes(): HasMany
+    {
+        return $this->hasMany(Quiz::class)->orderBy('display_order');
+    }
+
+    public function assessmentLogs(): HasMany
+    {
+        return $this->hasMany(AssessmentLog::class);
+    }
 }

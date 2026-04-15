@@ -2,18 +2,26 @@
 
 namespace App\Providers;
 
+use App\Models\Assignment;
+use App\Models\Attendance;
 use App\Models\Course;
 use App\Models\CourseMaterial;
 use App\Models\CourseModule;
 use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\FacultyProfile;
+use App\Models\Grade;
+use App\Models\User;
+use App\Policies\AssignmentPolicy;
+use App\Policies\AttendancePolicy;
 use App\Policies\CourseMaterialPolicy;
 use App\Policies\CourseModulePolicy;
 use App\Policies\CoursePolicy;
 use App\Policies\DepartmentPolicy;
 use App\Policies\EnrollmentPolicy;
 use App\Policies\FacultyProfilePolicy;
+use App\Policies\GradePolicy;
+use App\Policies\StudentPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +50,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(CourseMaterial::class, CourseMaterialPolicy::class);
         Gate::policy(FacultyProfile::class, FacultyProfilePolicy::class);
         Gate::policy(Enrollment::class, EnrollmentPolicy::class);
+        Gate::policy(User::class, StudentPolicy::class);
+        Gate::policy(Grade::class, GradePolicy::class);
+        Gate::policy(Attendance::class, AttendancePolicy::class);
+        Gate::policy(Assignment::class, AssignmentPolicy::class);
 
         $this->configureDefaults();
     }
@@ -58,13 +70,13 @@ class AppServiceProvider extends ServiceProvider
         );
 
         Password::defaults(
-            fn(): ?Password => app()->isProduction()
+            fn (): ?Password => app()->isProduction()
                 ? Password::min(12)
-                ->mixedCase()
-                ->letters()
-                ->numbers()
-                ->symbols()
-                ->uncompromised()
+                    ->mixedCase()
+                    ->letters()
+                    ->numbers()
+                    ->symbols()
+                    ->uncompromised()
                 : null,
         );
     }

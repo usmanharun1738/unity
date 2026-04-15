@@ -2,6 +2,9 @@
 
 use App\Enums\RoleName;
 use App\Http\Controllers\CourseMaterialDownloadController;
+use App\Livewire\Pages\Students\Directory as StudentsDirectory;
+use App\Livewire\Pages\Students\MyClasses as MyClassStudents;
+use App\Livewire\Pages\Students\Show as ShowStudent;
 use App\Models\Course;
 use App\Models\Department;
 use App\Models\Enrollment;
@@ -39,7 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->orderByDesc('count')
             ->limit(5)
             ->get()
-            ->map(fn(object $row): array => [
+            ->map(fn (object $row): array => [
                 'name' => (string) $row->name,
                 'count' => (int) $row->count,
             ])
@@ -90,6 +93,15 @@ Route::middleware(['auth', 'verified', 'role:admin|department-staff'])
 
         Route::livewire('classes', 'pages::courses.index')->name('courses.index');
         Route::livewire('classes/{course}', 'pages::courses.show')->name('courses.show');
+
+        Route::livewire('students', StudentsDirectory::class)->name('students.directory');
+        Route::livewire('students/{user}', ShowStudent::class)->name('students.show');
+    });
+
+Route::middleware(['auth', 'verified', 'role:faculty'])
+    ->group(function (): void {
+        Route::livewire('my-classes/students', MyClassStudents::class)->name('students.my-classes');
+        Route::livewire('my-classes/students/{user}', ShowStudent::class)->name('students.show-profile');
     });
 
 Route::middleware(['auth', 'verified'])
@@ -97,4 +109,4 @@ Route::middleware(['auth', 'verified'])
         Route::livewire('enrollments', 'pages::enrollments.index')->name('enrollments.index');
     });
 
-require __DIR__ . '/settings.php';
+require __DIR__.'/settings.php';
