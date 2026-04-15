@@ -852,6 +852,20 @@ new #[Title('Course Home')] class extends Component
         <div>
             <flux:heading size="xl">{{ $course->title }}</flux:heading>
             <flux:subheading>{{ $course->department?->name }} · {{ $course->code }}</flux:subheading>
+
+            @if ($this->canManageCourse || $this->isEnrolled)
+                <div class="mt-3">
+                    <flux:button
+                        size="sm"
+                        variant="ghost"
+                        :href="route('quizzes.index', ['course' => $course->id])"
+                        wire:navigate
+                        icon="question-mark-circle"
+                    >
+                        {{ __('Open Quiz Module') }}
+                    </flux:button>
+                </div>
+            @endif
         </div>
     </div>
 

@@ -46,6 +46,28 @@ new #[Title('Quizzes')] class extends Component
 
         $this->pullToastFromSession();
 
+        $requestedCourseId = request()->integer('course');
+
+        if ($requestedCourseId > 0) {
+            $requestedCourse = $this->availableCourses->firstWhere('id', $requestedCourseId);
+
+            if ($requestedCourse) {
+                $this->course_id = (int) $requestedCourse->id;
+
+                $firstQuiz = Quiz::query()
+                    ->where('course_id', $requestedCourse->id)
+                    ->orderBy('display_order')
+                    ->orderBy('created_at')
+                    ->first();
+
+                if ($firstQuiz) {
+                    $this->selected_quiz_id = (int) $firstQuiz->id;
+                }
+
+                return;
+            }
+        }
+
         $firstCourse = $this->availableCourses->first();
         if ($firstCourse) {
             $this->course_id = (int) $firstCourse->id;
@@ -59,13 +81,6 @@ new #[Title('Quizzes')] class extends Component
             if ($firstQuiz) {
                 $this->selected_quiz_id = (int) $firstQuiz->id;
             }
-        }
-    }
-
-    protected function ensureCanManageQuizzes(): void
-    {
-        if (! auth()->user()->can('quizzes.manage')) {
-            abort(403);
         }
     }
 
@@ -121,21 +136,7 @@ new #[Title('Quizzes')] class extends Component
             return false;
         }
 
-        $user = auth()->user();
-
-        if (! $user->can('quizzes.manage')) {
-            return false;
-        }
-
-        if ($user->hasAnyRole(['admin', 'department-staff'])) {
-            return true;
-        }
-
-        if ($user->hasRole('faculty') && $user->facultyProfile) {
-            return (int) $course->faculty_profile_id === (int) $user->facultyProfile->id;
-        }
-
-        return false;
+        return Gate::forUser(auth()->user())->check('update', $course);
     }
 
     #[Computed]
@@ -205,7 +206,6 @@ new #[Title('Quizzes')] class extends Component
             ->findOrFail($quizId);
 
         Gate::authorize('update', $quiz);
-        $this->ensureCanManageQuizzes();
 
         $this->selected_quiz_id = $quiz->id;
     }
@@ -219,7 +219,6 @@ new #[Title('Quizzes')] class extends Component
         }
 
         Gate::authorize('update', $course);
-        $this->ensureCanManageQuizzes();
 
         $validated = $this->validate([
             'quiz_title' => ['required', 'string', 'max:150'],
@@ -269,7 +268,6 @@ new #[Title('Quizzes')] class extends Component
         }
 
         Gate::authorize('update', $response->quiz);
-        $this->ensureCanManageQuizzes();
 
         $scoreInput = $this->quizResponseScores[$responseId] ?? $response->score;
 

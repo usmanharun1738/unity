@@ -98,6 +98,30 @@ class QuizModulePageTest extends TestCase
         ]);
     }
 
+    public function test_faculty_can_create_quiz_for_owned_course_without_quizzes_manage_permission(): void
+    {
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+
+        if ($instructor->hasPermissionTo('quizzes.manage')) {
+            $instructor->revokePermissionTo('quizzes.manage');
+            $instructor = User::query()->findOrFail($instructor->id);
+        }
+
+        Livewire::actingAs($instructor)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->set('quiz_title', 'Owned Course Quiz')
+            ->set('quiz_max_score', '60')
+            ->call('createQuiz')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quizzes', [
+            'course_id' => $course->id,
+            'title' => 'Owned Course Quiz',
+            'max_score' => 60,
+        ]);
+    }
+
     public function test_student_can_view_quiz_module_page_but_cannot_create_quiz(): void
     {
         ['student' => $student] = $this->createStudent();
@@ -168,5 +192,39 @@ class QuizModulePageTest extends TestCase
             ->assertOk()
             ->assertSee('Quizzes')
             ->assertSee(route('quizzes.index'));
+    }
+
+    public function test_quiz_page_honors_course_query_parameter_for_instructor(): void
+    {
+        ['instructor' => $instructor, 'course' => $firstCourse] = $this->createInstructorAndCourse();
+
+        $secondCourse = Course::factory()->create([
+            'faculty_profile_id' => $firstCourse->faculty_profile_id,
+            'is_active' => true,
+        ]);
+
+        Livewire::actingAs($instructor)
+            ->withQueryParams(['course' => $secondCourse->id])
+            ->test('pages::quizzes.index')
+            ->assertSet('course_id', $secondCourse->id);
+    }
+
+    public function test_faculty_cannot_create_quiz_for_course_not_owned(): void
+    {
+        ['instructor' => $instructor] = $this->createInstructorAndCourse();
+        ['course' => $otherCourse] = $this->createInstructorAndCourse();
+
+        Livewire::actingAs($instructor)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $otherCourse->id)
+            ->set('quiz_title', 'Unauthorized Quiz')
+            ->set('quiz_max_score', '40')
+            ->call('createQuiz')
+            ->assertStatus(403);
+
+        $this->assertDatabaseMissing('quizzes', [
+            'course_id' => $otherCourse->id,
+            'title' => 'Unauthorized Quiz',
+        ]);
     }
 }
