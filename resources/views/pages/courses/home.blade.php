@@ -1,6 +1,5 @@
 <?php
 
-use App\Actions\Courses\EnrollStudentInCourse;
 use App\Actions\Courses\EnrollStudentInCourseByInstructor;
 use App\Actions\Courses\GenerateEnrollmentKey;
 use App\Enums\RoleName;
@@ -25,8 +24,6 @@ new #[Title('Course Home')] class extends Component
     use WithFileUploads;
 
     public Course $course;
-
-    public string $enrollment_key = '';
 
     public string $syllabus_content = '';
 
@@ -115,33 +112,6 @@ new #[Title('Course Home')] class extends Component
             ->where('is_syllabus', true)
             ->latest()
             ->get();
-    }
-
-    public function enroll(): void
-    {
-        Gate::authorize('create', Enrollment::class);
-
-        $validated = $this->validate([
-            'enrollment_key' => ['required', 'string', 'max:32'],
-        ]);
-
-        try {
-            app(EnrollStudentInCourse::class)->handle(auth()->user(), $this->course, $validated['enrollment_key']);
-        } catch (ValidationException $exception) {
-            foreach ($exception->errors() as $field => $messages) {
-                foreach ($messages as $message) {
-                    $this->addError($field, $message);
-                }
-            }
-
-            $this->errorToast(__('Enrollment failed. Please check the enrollment key.'));
-
-            return;
-        }
-
-        $this->refreshCourse();
-        $this->reset('enrollment_key');
-        $this->successToast(__('You are now enrolled in this class.'));
     }
 
     public function saveSyllabus(): void
