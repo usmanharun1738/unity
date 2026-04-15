@@ -34,16 +34,18 @@
                         </flux:sidebar.item>
 
                         <flux:sidebar.item icon="academic-cap" :href="route('courses.index')" :current="request()->routeIs('courses.*')" wire:navigate>
-                            {{ __('Classes') }}
+                            {{ __('Courses') }}
                         </flux:sidebar.item>
                     @else
                         <flux:sidebar.item icon="academic-cap" :href="route('courses.browse')" :current="request()->routeIs('courses.browse') || request()->routeIs('courses.home')" wire:navigate>
-                            {{ __('Classes') }}
+                            {{ __('Courses') }}
                         </flux:sidebar.item>
 
-                        <flux:sidebar.item icon="clipboard-document-check" :href="route('enrollments.index')" :current="request()->routeIs('enrollments.*')" wire:navigate>
-                            {{ __('Enrollments') }}
-                        </flux:sidebar.item>
+                        @if (auth()->user()->studentProfile()->exists())
+                            <flux:sidebar.item icon="clipboard-document-check" :href="route('enrollments.index')" :current="request()->routeIs('enrollments.*')" wire:navigate>
+                                {{ __('Enrollments') }}
+                            </flux:sidebar.item>
+                        @endif
                     @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>

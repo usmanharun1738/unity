@@ -410,7 +410,7 @@ new #[Title('Course Home')] class extends Component
     </div>
 
     <div class="grid gap-4 lg:grid-cols-3">
-        <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:col-span-2 dark:border-zinc-700 dark:bg-zinc-900">
+        <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:col-span-3 dark:border-zinc-700 dark:bg-zinc-900">
             <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">{{ __('Class Overview') }}</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $course->description ?: __('No description provided yet.') }}</p>
 
@@ -436,26 +436,6 @@ new #[Title('Course Home')] class extends Component
                         {{ $this->isEnrolled ? __('Enrolled') : ($course->is_active ? __('Open') : __('Archived')) }}
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-            <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">{{ __('Join this class') }}</h2>
-            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('Enter the enrollment key shared by your instructor to join.') }}</p>
-
-            @if ($this->isEnrolled)
-                <div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
-                    {{ __('You are already enrolled in this class.') }}
-                </div>
-            @else
-                <form wire:submit="enroll" class="mt-4 space-y-4">
-                    <flux:input wire:model="enrollment_key" :label="__('Enrollment key')" type="text" required />
-                    <flux:button variant="primary" type="submit" class="w-full">{{ __('Join class') }}</flux:button>
-                </form>
-            @endif
-
-            <div class="mt-4 text-sm text-zinc-500">
-                {{ __('Course code') }}: {{ $course->code }}
             </div>
         </div>
     </div>

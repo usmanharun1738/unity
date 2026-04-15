@@ -6,6 +6,7 @@ use App\Enums\RoleName;
 use App\Models\Course;
 use App\Models\Department;
 use App\Models\Enrollment;
+use App\Models\FacultyProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -154,5 +155,34 @@ class BrowseCourseCatalogTest extends TestCase
             ->set('per_page', 6)
             ->assertSeeText('III Course')
             ->assertDontSeeText('CCC Course');
+    }
+
+    public function test_faculty_my_classes_only_shows_courses_taught_by_faculty_by_default(): void
+    {
+        Role::findOrCreate(RoleName::Faculty->value, 'web');
+
+        $faculty = User::factory()->create();
+        $faculty->assignRole(RoleName::Faculty->value);
+
+        $facultyProfile = FacultyProfile::factory()->create([
+            'user_id' => $faculty->id,
+        ]);
+
+        $taughtCourse = Course::factory()->create([
+            'title' => 'Course Taught By Faculty',
+            'faculty_profile_id' => $facultyProfile->id,
+            'is_active' => true,
+        ]);
+
+        $otherCourse = Course::factory()->create([
+            'title' => 'Course Taught By Someone Else',
+            'is_active' => true,
+        ]);
+
+        Livewire::actingAs($faculty)
+            ->test('pages::courses.browse')
+            ->assertSet('my_only', true)
+            ->assertSeeText($taughtCourse->title)
+            ->assertDontSeeText($otherCourse->title);
     }
 }

@@ -88,6 +88,12 @@ new #[Title('Class Catalog')] class extends Component
     }
 
     #[Computed]
+    public function isFaculty(): bool
+    {
+        return auth()->user()->hasRole(RoleName::Faculty->value);
+    }
+
+    #[Computed]
     public function departments()
     {
         return Department::query()->orderBy('name')->get(['id', 'name']);
@@ -134,7 +140,15 @@ new #[Title('Class Catalog')] class extends Component
                 });
             })
             ->when($this->isManager && ! $this->show_archived, fn (Builder $query) => $query->where('is_active', true))
-            ->when($this->my_only, fn (Builder $query) => $query->whereHas('enrollments', fn (Builder $enrollmentQuery) => $enrollmentQuery->where('user_id', auth()->id())))
+            ->when($this->my_only, function (Builder $query): void {
+                if ($this->isFaculty) {
+                    $query->whereHas('facultyProfile', fn (Builder $facultyQuery) => $facultyQuery->where('user_id', auth()->id()));
+
+                    return;
+                }
+
+                $query->whereHas('enrollments', fn (Builder $enrollmentQuery) => $enrollmentQuery->where('user_id', auth()->id()));
+            })
             ->orderBy(
                 in_array($this->sort_by, ['created_at', 'title', 'code', 'semester', 'enrollments_count'], true)
                     ? $this->sort_by
