@@ -8,6 +8,8 @@ use App\Models\Course;
 use App\Models\Department;
 use App\Models\StudentProfile;
 use App\Models\User;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -16,6 +18,14 @@ use Tests\TestCase;
 class PhaseOneRoadmapTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RoleSeeder::class);
+        $this->seed(PermissionSeeder::class);
+    }
 
     public function test_student_registration_creates_a_student_profile(): void
     {
@@ -44,6 +54,7 @@ class PhaseOneRoadmapTest extends TestCase
 
         $student = User::factory()->create();
         $student->assignRole(RoleName::Student->value);
+        StudentProfile::factory()->create(['user_id' => $student->id]);
 
         $this->actingAs($student);
 
@@ -79,7 +90,7 @@ class PhaseOneRoadmapTest extends TestCase
         $this->get(route('courses.home', $course))
             ->assertOk()
             ->assertSee($course->title)
-            ->assertSee('Join this class');
+            ->assertSee('Course Home');
     }
 
     public function test_admin_can_archive_and_restore_a_class(): void

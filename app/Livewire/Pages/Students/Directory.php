@@ -30,6 +30,8 @@ class Directory extends Component
     public function mount(): void
     {
         $this->authorize('viewAny', User::class);
+
+        abort_unless(auth()->user()->can('students.view-any'), 403);
     }
 
     public function updatedSearch(): void
@@ -78,6 +80,14 @@ class Directory extends Component
     #[Computed]
     public function students()
     {
+        $departmentName = null;
+
+        if ($this->department_id !== null) {
+            $departmentName = Department::query()
+                ->whereKey($this->department_id)
+                ->value('name');
+        }
+
         return User::query()
             ->with('studentProfile')
             ->whereHas('roles', function (Builder $query): void {
@@ -91,9 +101,9 @@ class Directory extends Component
                         });
                 });
             })
-            ->when($this->department_id, function (Builder $query): void {
-                $query->whereHas('studentProfile', function (Builder $subQuery): void {
-                    $subQuery->where('major', 'like', '%'.Department::find($this->department_id)?->name.'%');
+            ->when($departmentName, function (Builder $query) use ($departmentName): void {
+                $query->whereHas('studentProfile', function (Builder $subQuery) use ($departmentName): void {
+                    $subQuery->where('major', 'like', "%{$departmentName}%");
                 });
             })
             ->when($this->sort_by === 'name', function (Builder $query): void {

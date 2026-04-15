@@ -8,6 +8,8 @@ use App\Models\Enrollment;
 use App\Models\FacultyProfile;
 use App\Models\StudentProfile;
 use App\Models\User;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -16,6 +18,14 @@ use Tests\TestCase;
 class InstructorEnrollmentManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RoleSeeder::class);
+        $this->seed(PermissionSeeder::class);
+    }
 
     /**
      * @return array{instructor: User, course: Course}
@@ -119,5 +129,18 @@ class InstructorEnrollmentManagementTest extends TestCase
             'course_id' => $course->id,
             'user_id' => $faculty->id,
         ]);
+    }
+
+    public function test_instructor_missing_enrollments_manage_permission_cannot_generate_key(): void
+    {
+        $facultyRole = Role::findByName(RoleName::Faculty->value, 'web');
+        $facultyRole->revokePermissionTo('enrollments.manage');
+
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+
+        Livewire::actingAs($instructor)
+            ->test('pages::courses.home', ['course' => $course])
+            ->call('generateEnrollmentKey')
+            ->assertForbidden();
     }
 }

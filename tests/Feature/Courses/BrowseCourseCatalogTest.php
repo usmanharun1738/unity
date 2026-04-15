@@ -8,6 +8,8 @@ use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\FacultyProfile;
 use App\Models\User;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -16,6 +18,14 @@ use Tests\TestCase;
 class BrowseCourseCatalogTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RoleSeeder::class);
+        $this->seed(PermissionSeeder::class);
+    }
 
     /**
      * @return array{student: User, manager: User}
@@ -131,8 +141,8 @@ class BrowseCourseCatalogTest extends TestCase
 
         foreach (['AAA', 'BBB', 'CCC', 'DDD', 'EEE', 'FFF', 'GGG', 'HHH', 'III'] as $index => $prefix) {
             Course::factory()->create([
-                'title' => $prefix.' Course',
-                'code' => 'CAT'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
+                'title' => $prefix . ' Course',
+                'code' => 'CAT' . str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
                 'is_active' => true,
             ]);
         }
@@ -184,5 +194,18 @@ class BrowseCourseCatalogTest extends TestCase
             ->assertSet('my_only', true)
             ->assertSeeText($taughtCourse->title)
             ->assertDontSeeText($otherCourse->title);
+    }
+
+    public function test_user_missing_courses_view_any_permission_cannot_access_browse_page(): void
+    {
+        $studentRole = Role::findByName(RoleName::Student->value, 'web');
+        $studentRole->revokePermissionTo('courses.view-any');
+
+        $student = User::factory()->create();
+        $student->assignRole(RoleName::Student->value);
+
+        $this->actingAs($student)
+            ->get(route('courses.browse'))
+            ->assertForbidden();
     }
 }

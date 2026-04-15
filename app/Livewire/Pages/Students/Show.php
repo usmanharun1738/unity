@@ -42,6 +42,7 @@ class Show extends Component
         $this->user = $user;
 
         $this->authorize('viewAcademicRecords', $this->user);
+        abort_unless(auth()->user()->can('students.view-profile'), 403);
     }
 
     #[Computed]
@@ -84,6 +85,11 @@ class Show extends Component
 
     public function openAssessmentForm(?int $courseId = null): void
     {
+        abort_unless(
+            auth()->user()->can('students.manage-assessments') && auth()->user()->can('grades.manage'),
+            403,
+        );
+
         $this->selected_course_id = $courseId;
         $this->show_assessment_form = true;
         $this->resetAssessmentForm();
@@ -109,11 +115,16 @@ class Show extends Component
     #[Computed]
     public function canApproveGrades(): bool
     {
-        return auth()->user()->hasAnyRole(['admin', 'department-staff']);
+        return auth()->user()->can('grades.approve');
     }
 
     public function saveAssessmentScores(): void
     {
+        abort_unless(
+            auth()->user()->can('students.manage-assessments') && auth()->user()->can('grades.manage'),
+            403,
+        );
+
         $enrolledCourseIds = $this->enrolledCourses->pluck('id')->all();
 
         $validated = $this->validate([
@@ -196,6 +207,8 @@ class Show extends Component
 
     public function approveGrade(int $gradeId): void
     {
+        abort_unless(auth()->user()->can('grades.approve'), 403);
+
         $grade = Grade::query()
             ->where('id', $gradeId)
             ->where('user_id', $this->user->id)
@@ -214,6 +227,8 @@ class Show extends Component
 
     public function revokeGradeApproval(int $gradeId): void
     {
+        abort_unless(auth()->user()->can('grades.approve'), 403);
+
         $grade = Grade::query()
             ->where('id', $gradeId)
             ->where('user_id', $this->user->id)

@@ -29,6 +29,13 @@ new #[Title('Class Catalog')] class extends Component
 
     public int $per_page = 9;
 
+    public function mount(): void
+    {
+        if (! auth()->user()->can('courses.view-any')) {
+            abort(403);
+        }
+    }
+
     public function updatedSearch(): void
     {
         $this->resetPage();

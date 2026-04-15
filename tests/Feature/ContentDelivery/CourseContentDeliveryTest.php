@@ -10,6 +10,8 @@ use App\Models\Enrollment;
 use App\Models\FacultyProfile;
 use App\Models\StudentProfile;
 use App\Models\User;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -20,6 +22,14 @@ use Tests\TestCase;
 class CourseContentDeliveryTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RoleSeeder::class);
+        $this->seed(PermissionSeeder::class);
+    }
 
     /**
      * @return array{manager: User, student: User, nonEnrolledStudent: User, course: Course}
@@ -115,14 +125,14 @@ class CourseContentDeliveryTest extends TestCase
             'title' => 'Week 3',
         ]);
 
-        Storage::disk('local')->put('course-materials/'.$course->id.'/modules/'.$module->id.'/week3.pdf', 'week 3 content');
+        Storage::disk('local')->put('course-materials/' . $course->id . '/modules/' . $module->id . '/week3.pdf', 'week 3 content');
 
         $material = CourseMaterial::factory()->create([
             'course_id' => $course->id,
             'course_module_id' => $module->id,
             'uploaded_by' => $student->id,
             'title' => 'Week 3 PDF',
-            'file_path' => 'course-materials/'.$course->id.'/modules/'.$module->id.'/week3.pdf',
+            'file_path' => 'course-materials/' . $course->id . '/modules/' . $module->id . '/week3.pdf',
             'original_name' => 'week3.pdf',
             'mime_type' => 'application/pdf',
             'is_syllabus' => false,
@@ -143,14 +153,14 @@ class CourseContentDeliveryTest extends TestCase
             'title' => 'Week 4',
         ]);
 
-        Storage::disk('local')->put('course-materials/'.$course->id.'/modules/'.$module->id.'/week4.pdf', 'week 4 content');
+        Storage::disk('local')->put('course-materials/' . $course->id . '/modules/' . $module->id . '/week4.pdf', 'week 4 content');
 
         $material = CourseMaterial::factory()->create([
             'course_id' => $course->id,
             'course_module_id' => $module->id,
             'uploaded_by' => $student->id,
             'title' => 'Week 4 PDF',
-            'file_path' => 'course-materials/'.$course->id.'/modules/'.$module->id.'/week4.pdf',
+            'file_path' => 'course-materials/' . $course->id . '/modules/' . $module->id . '/week4.pdf',
             'original_name' => 'week4.pdf',
             'mime_type' => 'application/pdf',
             'is_syllabus' => false,
@@ -206,5 +216,37 @@ class CourseContentDeliveryTest extends TestCase
             'title' => 'Instructor Upload',
             'uploaded_by' => $instructor->id,
         ]);
+    }
+
+    public function test_enrolled_student_missing_materials_download_permission_cannot_download_material(): void
+    {
+        Storage::fake('local');
+
+        $studentRole = Role::findByName(RoleName::Student->value, 'web');
+        $studentRole->revokePermissionTo('materials.download');
+
+        ['student' => $student, 'course' => $course] = $this->createUsersAndCourse();
+
+        $module = CourseModule::factory()->create([
+            'course_id' => $course->id,
+            'title' => 'Week 6',
+        ]);
+
+        Storage::disk('local')->put('course-materials/' . $course->id . '/modules/' . $module->id . '/week6.pdf', 'week 6 content');
+
+        $material = CourseMaterial::factory()->create([
+            'course_id' => $course->id,
+            'course_module_id' => $module->id,
+            'uploaded_by' => $student->id,
+            'title' => 'Week 6 PDF',
+            'file_path' => 'course-materials/' . $course->id . '/modules/' . $module->id . '/week6.pdf',
+            'original_name' => 'week6.pdf',
+            'mime_type' => 'application/pdf',
+            'is_syllabus' => false,
+        ]);
+
+        $this->actingAs($student)
+            ->get(route('courses.materials.download', [$course, $material]))
+            ->assertForbidden();
     }
 }

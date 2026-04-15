@@ -26,6 +26,13 @@ class PermissionSeeder extends Seeder
             'grades.approve',
             'attendance.manage',
             'assignments.manage',
+            'courses.view-any',
+            'courses.view',
+            'courses.manage-content',
+            'enrollments.view-any',
+            'enrollments.create',
+            'enrollments.manage',
+            'materials.download',
         ];
 
         foreach ($permissions as $permission) {
@@ -48,6 +55,13 @@ class PermissionSeeder extends Seeder
             'grades.approve',
             'attendance.manage',
             'assignments.manage',
+            'courses.view-any',
+            'courses.view',
+            'courses.manage-content',
+            'enrollments.view-any',
+            'enrollments.create',
+            'enrollments.manage',
+            'materials.download',
         ]);
 
         $faculty->syncPermissions([
@@ -58,11 +72,22 @@ class PermissionSeeder extends Seeder
             'grades.manage',
             'attendance.manage',
             'assignments.manage',
+            'courses.view-any',
+            'courses.view',
+            'courses.manage-content',
+            'enrollments.view-any',
+            'enrollments.manage',
+            'materials.download',
         ]);
 
         $student->syncPermissions([
             'students.view-profile',
             'grades.view-any',
+            'courses.view-any',
+            'courses.view',
+            'enrollments.view-any',
+            'enrollments.create',
+            'materials.download',
         ]);
     }
 }

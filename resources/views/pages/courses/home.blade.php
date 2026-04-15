@@ -62,6 +62,11 @@ new #[Title('Course Home')] class extends Component
     public function mount(Course $course): void
     {
         Gate::authorize('view', $course);
+
+        if (! auth()->user()->can('courses.view')) {
+            abort(403);
+        }
+
         $this->course = $course->load(['department', 'facultyProfile.user', 'enrollments']);
         $this->syllabus_content = $this->course->syllabus_content ?? '';
         $this->pullToastFromSession();
@@ -103,6 +108,20 @@ new #[Title('Course Home')] class extends Component
         return $this->isManager || $this->isInstructor;
     }
 
+    protected function ensureCanManageCourseContent(): void
+    {
+        if (! auth()->user()->can('courses.manage-content')) {
+            abort(403);
+        }
+    }
+
+    protected function ensureCanManageEnrollments(): void
+    {
+        if (! auth()->user()->can('enrollments.manage')) {
+            abort(403);
+        }
+    }
+
     #[Computed]
     public function modules()
     {
@@ -123,6 +142,7 @@ new #[Title('Course Home')] class extends Component
     public function saveSyllabus(): void
     {
         Gate::authorize('update', $this->course);
+        $this->ensureCanManageCourseContent();
 
         $validated = $this->validate([
             'syllabus_content' => ['nullable', 'string', 'max:20000'],
@@ -145,6 +165,7 @@ new #[Title('Course Home')] class extends Component
     public function createModule(): void
     {
         Gate::authorize('update', $this->course);
+        $this->ensureCanManageCourseContent();
 
         $validated = $this->validate([
             'module_title' => ['required', 'string', 'max:150'],
@@ -179,6 +200,7 @@ new #[Title('Course Home')] class extends Component
     public function uploadSyllabusFile(): void
     {
         Gate::authorize('update', $this->course);
+        $this->ensureCanManageCourseContent();
 
         try {
             $validated = $this->validate([
@@ -226,6 +248,7 @@ new #[Title('Course Home')] class extends Component
     public function uploadModuleMaterial(): void
     {
         Gate::authorize('update', $this->course);
+        $this->ensureCanManageCourseContent();
 
         try {
             $validated = $this->validate([
@@ -278,6 +301,7 @@ new #[Title('Course Home')] class extends Component
     public function deleteMaterial(int $materialId): void
     {
         Gate::authorize('update', $this->course);
+        $this->ensureCanManageCourseContent();
 
         $material = CourseMaterial::query()
             ->where('course_id', $this->course->id)
@@ -295,6 +319,7 @@ new #[Title('Course Home')] class extends Component
     public function deleteModule(int $moduleId): void
     {
         Gate::authorize('update', $this->course);
+        $this->ensureCanManageCourseContent();
 
         $module = CourseModule::query()
             ->where('course_id', $this->course->id)
@@ -320,6 +345,7 @@ new #[Title('Course Home')] class extends Component
     public function generateEnrollmentKey(): void
     {
         Gate::authorize('update', $this->course);
+        $this->ensureCanManageEnrollments();
 
         app(GenerateEnrollmentKey::class)->handle($this->course);
         $this->refreshCourse();
@@ -329,6 +355,7 @@ new #[Title('Course Home')] class extends Component
     public function addStudentByEmail(): void
     {
         Gate::authorize('update', $this->course);
+        $this->ensureCanManageEnrollments();
 
         $validated = $this->validate([
             'add_student_email' => ['required', 'email', 'exists:users,email'],
@@ -358,6 +385,7 @@ new #[Title('Course Home')] class extends Component
     public function removeStudent(int $enrollmentId): void
     {
         Gate::authorize('update', $this->course);
+        $this->ensureCanManageEnrollments();
 
         $enrollment = Enrollment::query()
             ->where('course_id', $this->course->id)

@@ -24,6 +24,11 @@ new #[Title('Enrollments')] class extends Component
     public function mount(): void
     {
         Gate::authorize('viewAny', Enrollment::class);
+
+        if (! auth()->user()->can('enrollments.view-any')) {
+            abort(403);
+        }
+
         $this->pullToastFromSession();
         $this->email = auth()->user()->email;
     }
@@ -53,6 +58,10 @@ new #[Title('Enrollments')] class extends Component
     public function enroll(): void
     {
         Gate::authorize('create', Enrollment::class);
+
+        if (! auth()->user()->can('enrollments.create')) {
+            abort(403);
+        }
 
         $validated = $this->validate([
             'course_id' => [

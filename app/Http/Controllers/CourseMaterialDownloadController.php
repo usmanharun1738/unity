@@ -13,6 +13,11 @@ class CourseMaterialDownloadController extends Controller
     public function __invoke(Course $course, CourseMaterial $material): BinaryFileResponse
     {
         Gate::authorize('view', $course);
+
+        if (! auth()->user()->can('materials.download')) {
+            abort(403);
+        }
+
         abort_if($material->course_id !== $course->id, 404);
         Gate::authorize('download', $material);
 

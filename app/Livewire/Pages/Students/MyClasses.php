@@ -29,6 +29,8 @@ class MyClasses extends Component
     public function mount(): void
     {
         $this->authorize('viewAny', User::class);
+
+        abort_unless(auth()->user()->can('students.view-any'), 403);
     }
 
     public function updatedSearch(): void

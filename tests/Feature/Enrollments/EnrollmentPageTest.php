@@ -7,6 +7,8 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\StudentProfile;
 use App\Models\User;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -15,6 +17,14 @@ use Tests\TestCase;
 class EnrollmentPageTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RoleSeeder::class);
+        $this->seed(PermissionSeeder::class);
+    }
 
     public function test_authenticated_user_can_access_enrollments_page(): void
     {
@@ -119,6 +129,30 @@ class EnrollmentPageTest extends TestCase
 
         $this->assertDatabaseMissing('enrollments', [
             'user_id' => $faculty->id,
+            'course_id' => $course->id,
+        ]);
+    }
+
+    public function test_student_missing_enrollments_create_permission_cannot_enroll(): void
+    {
+        $studentRole = Role::findByName(RoleName::Student->value, 'web');
+        $studentRole->revokePermissionTo('enrollments.create');
+
+        $student = User::factory()->create();
+        $student->assignRole(RoleName::Student->value);
+        StudentProfile::factory()->create(['user_id' => $student->id]);
+
+        $course = Course::factory()->create(['code' => 'JOIN101', 'enrollment_key' => 'JOIN101-UNITY', 'is_active' => true]);
+
+        Livewire::actingAs($student)
+            ->test('pages::enrollments.index')
+            ->set('course_id', $course->id)
+            ->set('enrollment_key', 'JOIN101-UNITY')
+            ->call('enroll')
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('enrollments', [
+            'user_id' => $student->id,
             'course_id' => $course->id,
         ]);
     }
