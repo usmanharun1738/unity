@@ -12,6 +12,7 @@ use App\Models\CourseMaterial;
 use App\Models\CourseModule;
 use App\Models\Enrollment;
 use App\Models\Grade;
+use App\Models\QuizResponse;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -85,6 +86,11 @@ new #[Title('Course Home')] class extends Component
     /** @var mixed */
     public $submission_file = null;
 
+    public bool $is_quizzes_collapsed = true;
+
+    /** @var array<int, string|int|float|null> */
+    public array $quizResponseScores = [];
+
     public function mount(Course $course): void
     {
         Gate::authorize('view', $course);
@@ -155,6 +161,13 @@ new #[Title('Course Home')] class extends Component
         }
     }
 
+    protected function ensureCanManageQuizzes(): void
+    {
+        if (! auth()->user()->can('quizzes.manage')) {
+            abort(403);
+        }
+    }
+
     #[Computed]
     public function modules()
     {
@@ -190,6 +203,26 @@ new #[Title('Course Home')] class extends Component
             ->whereHas('assignment', fn ($query) => $query->where('course_id', $this->course->id))
             ->get()
             ->keyBy('assignment_id');
+    }
+
+    #[Computed]
+    public function quizzes()
+    {
+        return $this->course->quizzes()
+            ->with(['responses.student'])
+            ->withCount('responses')
+            ->orderBy('display_order')
+            ->get();
+    }
+
+    #[Computed]
+    public function myQuizResponses()
+    {
+        return QuizResponse::query()
+            ->where('user_id', auth()->id())
+            ->whereHas('quiz', fn ($query) => $query->where('course_id', $this->course->id))
+            ->get()
+            ->keyBy('quiz_id');
     }
 
     public function saveSyllabus(): void
@@ -460,8 +493,127 @@ new #[Title('Course Home')] class extends Component
         }
 
         $finalGrade =
-            (($grade->ca_score ?? 0) * 0.30) +
-            (($grade->test_score ?? 0) * 0.20) +
+            (($grade->ca_score ?? 0) * 0.25) +
+            (($grade->test_score ?? 0) * 0.15) +
+            (($grade->quiz_score ?? 0) * 0.10) +
+            (($grade->assignment_score ?? 0) * 0.10) +
+            (($grade->project_score ?? 0) * 0.10) +
+            (($grade->exam_score ?? 0) * 0.30);
+
+        $grade->final_grade = round($finalGrade, 2);
+        $grade->grade_letter = match (true) {
+            $finalGrade >= 80 => 'A',
+            $finalGrade >= 70 => 'B',
+            $finalGrade >= 60 => 'C',
+            $finalGrade >= 50 => 'D',
+            default => 'F',
+        };
+
+        $grade->save();
+    }
+
+    public function toggleQuizzesCollapsed(): void
+    {
+        $this->is_quizzes_collapsed = ! $this->is_quizzes_collapsed;
+    }
+
+    public function gradeQuizResponse(int $responseId): void
+    {
+        $response = QuizResponse::query()
+            ->whereHas('quiz', fn ($query) => $query->where('course_id', $this->course->id))
+            ->with('quiz')
+            ->findOrFail($responseId);
+
+        // Verify the student is enrolled in the course
+        $studentEnrolled = $this->course->enrollments()
+            ->where('user_id', $response->user_id)
+            ->whereIn('status', ['active', 'enrolled'])
+            ->exists();
+
+        if (! $studentEnrolled) {
+            abort(403);
+        }
+
+        Gate::authorize('update', $response->quiz);
+        $this->ensureCanManageQuizzes();
+
+        $scoreInput = $this->quizResponseScores[$responseId] ?? $response->score;
+
+        $validated = validator([
+            'score' => $scoreInput,
+        ], [
+            'score' => ['required', 'numeric', 'min:0', 'max:'.$response->quiz->max_score],
+        ])->validate();
+
+        DB::transaction(function () use ($response, $validated, $responseId): void {
+            $response->update([
+                'score' => round((float) $validated['score'], 2),
+            ]);
+
+            AssessmentLog::query()->updateOrCreate(
+                [
+                    'user_id' => $response->user_id,
+                    'course_id' => $this->course->id,
+                    'assessment_type' => 'quiz',
+                    'assessment_name' => 'Quiz: '.$response->quiz->title,
+                ],
+                [
+                    'score' => $response->score,
+                    'max_score' => $response->quiz->max_score,
+                    'assessed_by' => auth()->id(),
+                    'assessed_at' => now(),
+                    'notes' => null,
+                    'created_at' => now(),
+                ],
+            );
+
+            $this->syncQuizAggregateGradeForStudent((int) $response->user_id);
+
+            $this->quizResponseScores[$responseId] = (string) $response->score;
+        });
+
+        $this->successToast(__('Quiz scored successfully.'));
+    }
+
+    protected function syncQuizAggregateGradeForStudent(int $studentId): void
+    {
+        $responses = QuizResponse::query()
+            ->where('user_id', $studentId)
+            ->whereNotNull('score')
+            ->whereHas('quiz', fn ($query) => $query->where('course_id', $this->course->id))
+            ->with('quiz:id,max_score')
+            ->get();
+
+        $quizAggregate = null;
+
+        if ($responses->isNotEmpty()) {
+            $normalizedScores = $responses
+                ->filter(fn (QuizResponse $response): bool => (float) $response->quiz->max_score > 0)
+                ->map(fn (QuizResponse $response): float => ((float) $response->score / (float) $response->quiz->max_score) * 100)
+                ->values();
+
+            if ($normalizedScores->isNotEmpty()) {
+                $quizAggregate = round((float) $normalizedScores->avg(), 2);
+            }
+        }
+
+        $grade = Grade::query()->firstOrCreate([
+            'user_id' => $studentId,
+            'course_id' => $this->course->id,
+        ]);
+
+        $grade->quiz_score = $quizAggregate;
+
+        if ($grade->isDirty(['quiz_score'])) {
+            $grade->is_approved_by_admin = false;
+            $grade->approved_by = null;
+            $grade->approved_at = null;
+        }
+
+        $finalGrade =
+            (($grade->ca_score ?? 0) * 0.25) +
+            (($grade->test_score ?? 0) * 0.15) +
+            (($grade->quiz_score ?? 0) * 0.10) +
             (($grade->assignment_score ?? 0) * 0.10) +
             (($grade->project_score ?? 0) * 0.10) +
             (($grade->exam_score ?? 0) * 0.30);

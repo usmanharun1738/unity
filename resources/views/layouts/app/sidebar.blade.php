@@ -40,9 +40,17 @@
                         <flux:sidebar.item icon="academic-cap" :href="route('courses.index')" :current="request()->routeIs('courses.*')" wire:navigate>
                             {{ __('Courses') }}
                         </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="question-mark-circle" :href="route('quizzes.index')" :current="request()->routeIs('quizzes.*')" wire:navigate>
+                            {{ __('Quizzes') }}
+                        </flux:sidebar.item>
                     @elseif (auth()->user()->hasRole('faculty'))
                         <flux:sidebar.item icon="academic-cap" :href="route('courses.browse')" :current="request()->routeIs('courses.browse') || request()->routeIs('courses.home')" wire:navigate>
                             {{ __('Courses') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="question-mark-circle" :href="route('quizzes.index')" :current="request()->routeIs('quizzes.*')" wire:navigate>
+                            {{ __('Quizzes') }}
                         </flux:sidebar.item>
 
                         <flux:sidebar.item icon="users" :href="route('students.my-classes')" :current="request()->routeIs('students.my-classes')" wire:navigate>
@@ -51,6 +59,10 @@
                     @else
                         <flux:sidebar.item icon="academic-cap" :href="route('courses.browse')" :current="request()->routeIs('courses.browse') || request()->routeIs('courses.home')" wire:navigate>
                             {{ __('Courses') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="question-mark-circle" :href="route('quizzes.index')" :current="request()->routeIs('quizzes.*')" wire:navigate>
+                            {{ __('Quizzes') }}
                         </flux:sidebar.item>
 
                         @if (auth()->user()->studentProfile()->exists())
