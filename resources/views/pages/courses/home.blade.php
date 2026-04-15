@@ -381,7 +381,9 @@ new #[Title('Course Home')] class extends Component
         <div class="text-sm text-zinc-500">
             <a href="{{ route('dashboard') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Dashboard') }}</a>
             <span class="mx-2">/</span>
-            <a href="{{ route('enrollments.index') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Classes') }}</a>
+            <button type="button" onclick="history.back()" class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">
+                {{ __('Back') }}
+            </button>
             <span class="mx-2">/</span>
             <span>{{ __('Course Home') }}</span>
         </div>

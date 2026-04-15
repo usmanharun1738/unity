@@ -167,15 +167,12 @@ new #[Title('Class Catalog')] class extends Component
             <div class="text-sm text-zinc-500">
                 <a href="{{ route('dashboard') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Dashboard') }}</a>
                 <span class="mx-2">/</span>
-                <span>{{ __('Classes') }}</span>
+                <span>{{ __('Courses') }}</span>
             </div>
-            <flux:heading size="xl" class="mt-2">{{ __('Class Catalog') }}</flux:heading>
+            <flux:heading size="xl" class="mt-2">{{ __('Course Catalog') }}</flux:heading>
             <flux:subheading>{{ __('Browse available classes and open course homepages.') }}</flux:subheading>
         </div>
 
-        <flux:button :href="route('enrollments.index')" wire:navigate variant="ghost">
-            {{ __('Go to enrollments') }}
-        </flux:button>
     </div>
 
     <div class="grid gap-3 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 md:grid-cols-5">
