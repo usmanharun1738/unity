@@ -31,6 +31,8 @@ new #[Title('Quizzes')] class extends Component
 
     public bool $quiz_show_results_immediately = true;
 
+    public ?int $selected_quiz_id = null;
+
     /** @var array<int, string|int|float|null> */
     public array $quizResponseScores = [];
 
@@ -47,6 +49,16 @@ new #[Title('Quizzes')] class extends Component
         $firstCourse = $this->availableCourses->first();
         if ($firstCourse) {
             $this->course_id = (int) $firstCourse->id;
+
+            $firstQuiz = Quiz::query()
+                ->where('course_id', $firstCourse->id)
+                ->orderBy('display_order')
+                ->orderBy('created_at')
+                ->first();
+
+            if ($firstQuiz) {
+                $this->selected_quiz_id = (int) $firstQuiz->id;
+            }
         }
     }
 
@@ -158,6 +170,44 @@ new #[Title('Quizzes')] class extends Component
     public function updatedCourseId(): void
     {
         $this->quizResponseScores = [];
+        $this->selected_quiz_id = null;
+
+        $firstQuiz = $this->quizzes->first();
+        if ($firstQuiz) {
+            $this->selected_quiz_id = (int) $firstQuiz->id;
+        }
+    }
+
+    #[Computed]
+    public function selectedQuiz(): ?Quiz
+    {
+        if (! $this->selected_quiz_id) {
+            return null;
+        }
+
+        return $this->quizzes->firstWhere('id', (int) $this->selected_quiz_id);
+    }
+
+    #[Computed]
+    public function selectedQuizResponses()
+    {
+        if (! $this->selectedQuiz) {
+            return collect();
+        }
+
+        return $this->selectedQuiz->responses;
+    }
+
+    public function openGradingPanel(int $quizId): void
+    {
+        $quiz = Quiz::query()
+            ->whereHas('course', fn ($query) => $query->whereIn('id', $this->availableCourses->pluck('id')->all()))
+            ->findOrFail($quizId);
+
+        Gate::authorize('update', $quiz);
+        $this->ensureCanManageQuizzes();
+
+        $this->selected_quiz_id = $quiz->id;
     }
 
     public function createQuiz(): void
@@ -182,7 +232,7 @@ new #[Title('Quizzes')] class extends Component
 
         $nextDisplayOrder = ((int) Quiz::query()->where('course_id', $course->id)->max('display_order')) + 1;
 
-        Quiz::query()->create([
+        $quiz = Quiz::query()->create([
             'course_id' => $course->id,
             'title' => $validated['quiz_title'],
             'description' => $validated['quiz_description'] !== '' ? $validated['quiz_description'] : null,
@@ -196,6 +246,7 @@ new #[Title('Quizzes')] class extends Component
         $this->reset(['quiz_title', 'quiz_description', 'quiz_pass_score', 'quiz_time_limit_minutes']);
         $this->quiz_max_score = '100';
         $this->quiz_show_results_immediately = true;
+        $this->selected_quiz_id = $quiz->id;
 
         $this->successToast(__('Quiz created successfully.'));
     }
@@ -327,7 +378,7 @@ new #[Title('Quizzes')] class extends Component
             <span>{{ __('Quizzes') }}</span>
         </div>
         <flux:heading size="xl" class="mt-2">{{ __('Quiz Module') }}</flux:heading>
-        <flux:subheading>{{ __('Create quizzes and score quiz responses by course.') }}</flux:subheading>
+        <flux:subheading>{{ __('Instructor quiz list, grading panel, and student quiz view by course.') }}</flux:subheading>
     </div>
 
     <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -372,67 +423,101 @@ new #[Title('Quizzes')] class extends Component
 
                 <flux:button variant="primary" type="submit">{{ __('Create Quiz') }}</flux:button>
             </form>
-        @endif
 
-        <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-            <flux:heading size="lg">{{ __('Quizzes') }}</flux:heading>
+            <div class="grid gap-4 lg:grid-cols-2">
+                <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                    <flux:heading size="lg">{{ __('Instructor Quiz List') }}</flux:heading>
 
-            <div class="mt-4 space-y-4">
-                @forelse ($this->quizzes as $quiz)
-                    <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
-                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h3 class="font-medium text-zinc-900 dark:text-zinc-100">{{ $quiz->title }}</h3>
-                                <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ $quiz->description ?: __('No description provided.') }}</p>
+                    <div class="mt-4 space-y-3">
+                        @forelse ($this->quizzes as $quiz)
+                            <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h3 class="font-medium text-zinc-900 dark:text-zinc-100">{{ $quiz->title }}</h3>
+                                        <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Max :max · :count responses', ['max' => $quiz->max_score, 'count' => $quiz->responses_count]) }}</p>
+                                    </div>
+                                    <flux:button size="sm" variant="ghost" wire:click="openGradingPanel({{ $quiz->id }})">
+                                        {{ __('Grade Responses') }}
+                                    </flux:button>
+                                </div>
                             </div>
-                            <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                {{ __('Max: :max | Responses: :count', ['max' => $quiz->max_score, 'count' => $quiz->responses_count]) }}
-                            </div>
+                        @empty
+                            <p class="text-sm text-zinc-500">{{ __('No quizzes created for this course yet.') }}</p>
+                        @endforelse
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                    <flux:heading size="lg">{{ __('Response Grading Panel') }}</flux:heading>
+
+                    @if ($this->selectedQuiz)
+                        <div class="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+                            {{ __('Quiz: :title (Max :max)', ['title' => $this->selectedQuiz->title, 'max' => $this->selectedQuiz->max_score]) }}
                         </div>
 
-                        @if ($this->canManageSelectedCourse)
-                            <div class="mt-4 overflow-x-auto">
-                                <table class="min-w-full text-left text-sm">
-                                    <thead class="bg-zinc-50 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
+                        <div class="mt-4 overflow-x-auto">
+                            <table class="min-w-full text-left text-sm">
+                                <thead class="bg-zinc-50 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
+                                    <tr>
+                                        <th class="px-3 py-2 font-medium">{{ __('Student') }}</th>
+                                        <th class="px-3 py-2 font-medium">{{ __('Submitted') }}</th>
+                                        <th class="px-3 py-2 font-medium">{{ __('Score') }}</th>
+                                        <th class="px-3 py-2 font-medium text-right">{{ __('Action') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                                    @forelse ($this->selectedQuizResponses as $response)
                                         <tr>
-                                            <th class="px-3 py-2 font-medium">{{ __('Student') }}</th>
-                                            <th class="px-3 py-2 font-medium">{{ __('Submitted') }}</th>
-                                            <th class="px-3 py-2 font-medium">{{ __('Score') }}</th>
-                                            <th class="px-3 py-2 font-medium text-right">{{ __('Action') }}</th>
+                                            <td class="px-3 py-2">{{ $response->student?->name ?? __('Unknown') }}</td>
+                                            <td class="px-3 py-2 text-zinc-500">{{ optional($response->submitted_at)->format('M d, Y H:i') }}</td>
+                                            <td class="px-3 py-2">
+                                                <input
+                                                    wire:model="quizResponseScores.{{ $response->id }}"
+                                                    type="number"
+                                                    min="0"
+                                                    max="{{ $this->selectedQuiz->max_score }}"
+                                                    step="0.01"
+                                                    class="w-28 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                                                    placeholder="{{ $response->score ?? '0' }}"
+                                                />
+                                            </td>
+                                            <td class="px-3 py-2 text-right">
+                                                <flux:button size="sm" variant="primary" wire:click="gradeQuizResponse({{ $response->id }})">
+                                                    {{ __('Save') }}
+                                                </flux:button>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                                        @forelse ($quiz->responses as $response)
-                                            <tr>
-                                                <td class="px-3 py-2">{{ $response->student?->name ?? __('Unknown') }}</td>
-                                                <td class="px-3 py-2 text-zinc-500">{{ optional($response->submitted_at)->format('M d, Y H:i') }}</td>
-                                                <td class="px-3 py-2">
-                                                    <input
-                                                        wire:model="quizResponseScores.{{ $response->id }}"
-                                                        type="number"
-                                                        min="0"
-                                                        max="{{ $quiz->max_score }}"
-                                                        step="0.01"
-                                                        class="w-28 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                                                        placeholder="{{ $response->score ?? '0' }}"
-                                                    />
-                                                </td>
-                                                <td class="px-3 py-2 text-right">
-                                                    <flux:button size="sm" variant="primary" wire:click="gradeQuizResponse({{ $response->id }})">
-                                                        {{ __('Save') }}
-                                                    </flux:button>
-                                                </td>
-                                            </tr>
-                                        @empty
-                                            <tr>
-                                                <td colspan="4" class="px-3 py-6 text-center text-zinc-500">{{ __('No responses yet.') }}</td>
-                                            </tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="px-3 py-6 text-center text-zinc-500">{{ __('No responses yet for the selected quiz.') }}</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    @else
+                        <p class="mt-3 text-sm text-zinc-500">{{ __('Select a quiz from the instructor list to open grading.') }}</p>
+                    @endif
+                </div>
+            </div>
+        @else
+            <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <flux:heading size="lg">{{ __('Student Quiz View') }}</flux:heading>
+
+                <div class="mt-4 space-y-4">
+                    @forelse ($this->quizzes as $quiz)
+                        @php($myResponse = $this->myResponsesByQuiz->get($quiz->id))
+                        <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h3 class="font-medium text-zinc-900 dark:text-zinc-100">{{ $quiz->title }}</h3>
+                                    <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ $quiz->description ?: __('No description provided.') }}</p>
+                                </div>
+                                <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                                    {{ __('Max: :max', ['max' => $quiz->max_score]) }}
+                                </div>
                             </div>
-                        @else
-                            @php($myResponse = $this->myResponsesByQuiz->get($quiz->id))
+
                             <div class="mt-3 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                                 <div class="text-zinc-600 dark:text-zinc-300">
                                     {{ __('Your score: :score', ['score' => $myResponse?->score ?? __('Not graded yet')]) }}
@@ -440,13 +525,16 @@ new #[Title('Quizzes')] class extends Component
                                 <div class="mt-1 text-zinc-500 dark:text-zinc-400">
                                     {{ __('Submitted: :date', ['date' => $myResponse?->submitted_at?->format('M d, Y H:i') ?? __('Not submitted')]) }}
                                 </div>
+                                <div class="mt-1 text-zinc-500 dark:text-zinc-400">
+                                    {{ __('Status: :status', ['status' => $myResponse?->is_passed === null ? __('Pending') : ($myResponse->is_passed ? __('Passed') : __('Not passed'))]) }}
+                                </div>
                             </div>
-                        @endif
-                    </div>
-                @empty
-                    <p class="text-sm text-zinc-500">{{ __('No quizzes created for this course yet.') }}</p>
-                @endforelse
+                        </div>
+                    @empty
+                        <p class="text-sm text-zinc-500">{{ __('No quizzes created for this course yet.') }}</p>
+                    @endforelse
+                </div>
             </div>
-        </div>
+        @endif
     @endif
 </div>

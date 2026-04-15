@@ -70,7 +70,9 @@ class QuizModulePageTest extends TestCase
         $this->actingAs($instructor)
             ->get(route('quizzes.index'))
             ->assertOk()
-            ->assertSee('Quiz Module');
+            ->assertSee('Quiz Module')
+            ->assertSee('Instructor Quiz List')
+            ->assertSee('Response Grading Panel');
     }
 
     public function test_faculty_can_create_quiz_from_quiz_module_page(): void
@@ -105,7 +107,8 @@ class QuizModulePageTest extends TestCase
 
         $this->actingAs($student)
             ->get(route('quizzes.index'))
-            ->assertOk();
+            ->assertOk()
+            ->assertSee('Student Quiz View');
 
         Livewire::actingAs($student)
             ->test('pages::quizzes.index')
