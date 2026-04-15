@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'course_id', 'assessment_type', 'assessment_name', 'score', 'max_score', 'assessed_by', 'assessed_at', 'notes'])]
+#[Fillable(['user_id', 'course_id', 'assessment_type', 'assessment_name', 'score', 'max_score', 'assessed_by', 'assessed_at', 'notes', 'created_at'])]
 class AssessmentLog extends Model
 {
     /** @use HasFactory<AssessmentLogFactory> */

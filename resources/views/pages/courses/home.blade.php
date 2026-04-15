@@ -4,11 +4,16 @@ use App\Actions\Courses\EnrollStudentInCourseByInstructor;
 use App\Actions\Courses\GenerateEnrollmentKey;
 use App\Enums\RoleName;
 use App\Livewire\Concerns\HasToastFeedback;
+use App\Models\AssessmentLog;
+use App\Models\Assignment;
+use App\Models\AssignmentSubmission;
 use App\Models\Course;
 use App\Models\CourseMaterial;
 use App\Models\CourseModule;
 use App\Models\Enrollment;
+use App\Models\Grade;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -58,6 +63,27 @@ new #[Title('Course Home')] class extends Component
     public $syllabus_file = null;
 
     public string $add_student_email = '';
+
+    public bool $is_assignments_collapsed = true;
+
+    public string $assignment_title = '';
+
+    public string $assignment_description = '';
+
+    public string $assignment_due_date = '';
+
+    public string $assignment_max_score = '100';
+
+    public ?int $submission_assignment_id = null;
+
+    /** @var array<int, string|int|float|null> */
+    public array $submissionScores = [];
+
+    /** @var array<int, string|null> */
+    public array $submissionFeedbacks = [];
+
+    /** @var mixed */
+    public $submission_file = null;
 
     public function mount(Course $course): void
     {
@@ -122,6 +148,13 @@ new #[Title('Course Home')] class extends Component
         }
     }
 
+    protected function ensureCanManageAssignments(): void
+    {
+        if (! auth()->user()->can('assignments.manage')) {
+            abort(403);
+        }
+    }
+
     #[Computed]
     public function modules()
     {
@@ -137,6 +170,26 @@ new #[Title('Course Home')] class extends Component
             ->where('is_syllabus', true)
             ->latest()
             ->get();
+    }
+
+    #[Computed]
+    public function assignments()
+    {
+        return $this->course->assignments()
+            ->with(['submissions.student'])
+            ->withCount('submissions')
+            ->orderBy('due_date')
+            ->get();
+    }
+
+    #[Computed]
+    public function myAssignmentSubmissions()
+    {
+        return AssignmentSubmission::query()
+            ->where('user_id', auth()->id())
+            ->whereHas('assignment', fn ($query) => $query->where('course_id', $this->course->id))
+            ->get()
+            ->keyBy('assignment_id');
     }
 
     public function saveSyllabus(): void
@@ -195,6 +248,234 @@ new #[Title('Course Home')] class extends Component
     public function toggleEnrollmentManagementCollapsed(): void
     {
         $this->is_enrollment_management_collapsed = ! $this->is_enrollment_management_collapsed;
+    }
+
+    public function toggleAssignmentsCollapsed(): void
+    {
+        $this->is_assignments_collapsed = ! $this->is_assignments_collapsed;
+    }
+
+    public function createAssignment(): void
+    {
+        Gate::authorize('update', $this->course);
+        $this->ensureCanManageAssignments();
+
+        $validated = $this->validate([
+            'assignment_title' => ['required', 'string', 'max:150'],
+            'assignment_description' => ['required', 'string', 'max:4000'],
+            'assignment_due_date' => ['required', 'date'],
+            'assignment_max_score' => ['required', 'numeric', 'min:1', 'max:999.99'],
+        ]);
+
+        $nextDisplayOrder = ((int) $this->course->assignments()->max('display_order')) + 1;
+
+        Assignment::query()->create([
+            'course_id' => $this->course->id,
+            'title' => $validated['assignment_title'],
+            'description' => $validated['assignment_description'],
+            'due_date' => $validated['assignment_due_date'],
+            'max_score' => $validated['assignment_max_score'],
+            'display_order' => $nextDisplayOrder,
+        ]);
+
+        $this->reset(['assignment_title', 'assignment_description', 'assignment_due_date', 'assignment_max_score']);
+        $this->assignment_max_score = '100';
+        $this->successToast(__('Assignment created successfully.'));
+    }
+
+    public function deleteAssignment(int $assignmentId): void
+    {
+        $assignment = Assignment::query()
+            ->where('course_id', $this->course->id)
+            ->with('submissions')
+            ->findOrFail($assignmentId);
+
+        Gate::authorize('delete', $assignment);
+        $this->ensureCanManageAssignments();
+
+        $affectedStudentIds = $assignment->submissions
+            ->pluck('user_id')
+            ->unique()
+            ->map(fn ($id): int => (int) $id)
+            ->values();
+
+        $assessmentName = 'Assignment: '.$assignment->title;
+
+        foreach ($assignment->submissions as $submission) {
+            if ($submission->file_path && Storage::disk('local')->exists($submission->file_path)) {
+                Storage::disk('local')->delete($submission->file_path);
+            }
+        }
+
+        $assignment->delete();
+
+        AssessmentLog::query()
+            ->where('course_id', $this->course->id)
+            ->where('assessment_type', 'assignment')
+            ->where('assessment_name', $assessmentName)
+            ->delete();
+
+        foreach ($affectedStudentIds as $studentId) {
+            $this->syncAssignmentAggregateGradeForStudent($studentId);
+        }
+
+        $this->successToast(__('Assignment deleted.'));
+    }
+
+    public function submitAssignment(): void
+    {
+        if (! $this->isEnrolled || ! auth()->user()->studentProfile()->exists()) {
+            abort(403);
+        }
+
+        $validated = $this->validate([
+            'submission_assignment_id' => ['required', 'integer'],
+            'submission_file' => ['required', 'file', 'max:10240'],
+        ]);
+
+        $assignment = Assignment::query()
+            ->where('course_id', $this->course->id)
+            ->findOrFail((int) $validated['submission_assignment_id']);
+
+        Gate::authorize('view', $assignment);
+
+        $existingSubmission = AssignmentSubmission::query()
+            ->where('assignment_id', $assignment->id)
+            ->where('user_id', auth()->id())
+            ->first();
+
+        $path = $this->submission_file->store(
+            'assignment-submissions/'.$this->course->id.'/'.$assignment->id,
+            'local',
+        );
+
+        if ($existingSubmission?->file_path && Storage::disk('local')->exists($existingSubmission->file_path)) {
+            Storage::disk('local')->delete($existingSubmission->file_path);
+        }
+
+        AssignmentSubmission::query()->updateOrCreate(
+            [
+                'assignment_id' => $assignment->id,
+                'user_id' => auth()->id(),
+            ],
+            [
+                'file_path' => $path,
+                'submission_date' => now(),
+                'is_late' => now()->greaterThan($assignment->due_date),
+            ],
+        );
+
+        $this->reset(['submission_assignment_id', 'submission_file']);
+        $this->successToast(__('Assignment submitted successfully.'));
+    }
+
+    public function gradeAssignmentSubmission(int $submissionId): void
+    {
+        $submission = AssignmentSubmission::query()
+            ->whereHas('assignment', fn ($query) => $query->where('course_id', $this->course->id))
+            ->with('assignment')
+            ->findOrFail($submissionId);
+
+        Gate::authorize('update', $submission->assignment);
+        $this->ensureCanManageAssignments();
+
+        $scoreInput = $this->submissionScores[$submissionId] ?? $submission->score;
+        $feedbackInput = $this->submissionFeedbacks[$submissionId] ?? $submission->feedback;
+
+        $validated = validator([
+            'score' => $scoreInput,
+            'feedback' => $feedbackInput,
+        ], [
+            'score' => ['required', 'numeric', 'min:0', 'max:'.$submission->assignment->max_score],
+            'feedback' => ['nullable', 'string', 'max:4000'],
+        ])->validate();
+
+        DB::transaction(function () use ($submission, $validated, $submissionId): void {
+            $submission->update([
+                'score' => round((float) $validated['score'], 2),
+                'feedback' => $validated['feedback'] !== '' ? $validated['feedback'] : null,
+                'graded_by' => auth()->id(),
+                'graded_at' => now(),
+            ]);
+
+            AssessmentLog::query()->updateOrCreate(
+                [
+                    'user_id' => $submission->user_id,
+                    'course_id' => $this->course->id,
+                    'assessment_type' => 'assignment',
+                    'assessment_name' => 'Assignment: '.$submission->assignment->title,
+                ],
+                [
+                    'score' => $submission->score,
+                    'max_score' => $submission->assignment->max_score,
+                    'assessed_by' => auth()->id(),
+                    'assessed_at' => now(),
+                    'notes' => $submission->feedback,
+                    'created_at' => now(),
+                ],
+            );
+
+            $this->syncAssignmentAggregateGradeForStudent((int) $submission->user_id);
+
+            $this->submissionScores[$submissionId] = (string) $submission->score;
+            $this->submissionFeedbacks[$submissionId] = $submission->feedback;
+        });
+
+        $this->successToast(__('Assignment submission graded successfully.'));
+    }
+
+    protected function syncAssignmentAggregateGradeForStudent(int $studentId): void
+    {
+        $submissions = AssignmentSubmission::query()
+            ->where('user_id', $studentId)
+            ->whereNotNull('score')
+            ->whereHas('assignment', fn ($query) => $query->where('course_id', $this->course->id))
+            ->with('assignment:id,max_score')
+            ->get();
+
+        $assignmentAggregate = null;
+
+        if ($submissions->isNotEmpty()) {
+            $normalizedScores = $submissions
+                ->filter(fn (AssignmentSubmission $submission): bool => (float) $submission->assignment->max_score > 0)
+                ->map(fn (AssignmentSubmission $submission): float => ((float) $submission->score / (float) $submission->assignment->max_score) * 100)
+                ->values();
+
+            if ($normalizedScores->isNotEmpty()) {
+                $assignmentAggregate = round((float) $normalizedScores->avg(), 2);
+            }
+        }
+
+        $grade = Grade::query()->firstOrCreate([
+            'user_id' => $studentId,
+            'course_id' => $this->course->id,
+        ]);
+
+        $grade->assignment_score = $assignmentAggregate;
+
+        if ($grade->isDirty(['assignment_score'])) {
+            $grade->is_approved_by_admin = false;
+            $grade->approved_by = null;
+            $grade->approved_at = null;
+        }
+
+        $finalGrade =
+            (($grade->ca_score ?? 0) * 0.30) +
+            (($grade->test_score ?? 0) * 0.20) +
+            (($grade->assignment_score ?? 0) * 0.10) +
+            (($grade->project_score ?? 0) * 0.10) +
+            (($grade->exam_score ?? 0) * 0.30);
+
+        $grade->final_grade = round($finalGrade, 2);
+        $grade->grade_letter = match (true) {
+            $finalGrade >= 80 => 'A',
+            $finalGrade >= 70 => 'B',
+            $finalGrade >= 60 => 'C',
+            $finalGrade >= 50 => 'D',
+            default => 'F',
+        };
+
+        $grade->save();
     }
 
     public function uploadSyllabusFile(): void
@@ -619,6 +900,170 @@ new #[Title('Course Home')] class extends Component
                 @else
                     <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
                         {{ __('Enroll in this class to access module content and downloadable files.') }}
+                    </div>
+                @endif
+            @endif
+        </div>
+
+        <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center justify-between gap-2">
+                <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">{{ __('Assignments') }}</h2>
+                <flux:button
+                    size="sm"
+                    variant="ghost"
+                    wire:click="toggleAssignmentsCollapsed"
+                    :icon="$is_assignments_collapsed ? 'chevron-down' : 'chevron-up'"
+                >
+                    {{ $is_assignments_collapsed ? __('Expand') : __('Collapse') }}
+                </flux:button>
+            </div>
+
+            @if (! $is_assignments_collapsed)
+                @if ($this->canAccessLearningContent)
+                    @if ($this->canManageCourse && auth()->user()->can('assignments.manage'))
+                        <form wire:submit="createAssignment" class="mt-4 grid gap-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700 md:grid-cols-2">
+                            <flux:input wire:model="assignment_title" :label="__('Title')" type="text" required />
+                            <flux:input wire:model="assignment_due_date" :label="__('Due date')" type="datetime-local" required />
+                            <flux:input wire:model="assignment_max_score" :label="__('Max score')" type="number" min="1" max="999.99" step="0.01" required />
+                            <div class="md:col-span-2 space-y-1">
+                                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Description') }}</label>
+                                <textarea
+                                    wire:model="assignment_description"
+                                    rows="4"
+                                    required
+                                    class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                                ></textarea>
+                            </div>
+                            <div class="md:col-span-2">
+                                <flux:button variant="primary" type="submit">{{ __('Create assignment') }}</flux:button>
+                            </div>
+                        </form>
+                    @endif
+
+                    @if ($this->isEnrolled && auth()->user()->studentProfile()->exists())
+                        <form wire:submit="submitAssignment" class="mt-4 grid gap-4 rounded-xl border border-zinc-200 p-4 dark:border-zinc-700 md:grid-cols-2">
+                            <flux:select wire:model="submission_assignment_id" :label="__('Assignment')" required>
+                                <option value="">{{ __('Select assignment') }}</option>
+                                @foreach ($this->assignments as $assignmentOption)
+                                    <option value="{{ $assignmentOption->id }}">{{ $assignmentOption->title }}</option>
+                                @endforeach
+                            </flux:select>
+                            <flux:input wire:model="submission_file" :label="__('Submission file')" type="file" required />
+                            <div class="md:col-span-2">
+                                <flux:button variant="primary" type="submit">{{ __('Submit assignment') }}</flux:button>
+                            </div>
+                        </form>
+                    @endif
+
+                    <div class="mt-4 space-y-3">
+                        @forelse ($this->assignments as $assignment)
+                            @php
+                                $mySubmission = $this->myAssignmentSubmissions->get($assignment->id);
+                            @endphp
+                            <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
+                                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ $assignment->title }}</h3>
+                                        <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{{ $assignment->description }}</p>
+                                        <div class="mt-2 text-xs text-zinc-500">
+                                            {{ __('Due: :due · Max score: :max', ['due' => $assignment->due_date?->format('M d, Y h:i A'), 'max' => $assignment->max_score]) }}
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        @if ($this->canManageCourse)
+                                            <flux:badge>{{ __('Submissions: :count', ['count' => $assignment->submissions_count]) }}</flux:badge>
+                                        @endif
+
+                                        @if ($mySubmission)
+                                            <flux:badge :variant="$mySubmission->is_late ? 'warning' : 'success'">
+                                                {{ $mySubmission->is_late ? __('Submitted late') : __('Submitted') }}
+                                            </flux:badge>
+
+                                            @if ($mySubmission->score !== null)
+                                                <flux:badge variant="success">{{ __('Score: :score', ['score' => $mySubmission->score]) }}</flux:badge>
+                                            @endif
+                                        @endif
+
+                                        @if ($this->canManageCourse && auth()->user()->can('assignments.manage'))
+                                            <flux:button
+                                                size="sm"
+                                                variant="danger"
+                                                wire:click="deleteAssignment({{ $assignment->id }})"
+                                                wire:confirm="{{ __('Delete this assignment and all submissions?') }}"
+                                            >
+                                                {{ __('Delete') }}
+                                            </flux:button>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                @if ($this->canManageCourse && auth()->user()->can('assignments.manage'))
+                                    <div class="mt-4 space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                                        <h4 class="text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ __('Submission Grading') }}</h4>
+
+                                        @forelse ($assignment->submissions as $submission)
+                                            <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                    <div class="text-sm">
+                                                        <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $submission->student?->name }}</div>
+                                                        <div class="text-xs text-zinc-500">{{ $submission->student?->email }}</div>
+                                                        <div class="mt-1 text-xs text-zinc-500">
+                                                            {{ __('Submitted: :date', ['date' => $submission->submission_date?->format('M d, Y h:i A')]) }}
+                                                        </div>
+                                                    </div>
+                                                    <div class="flex items-center gap-2">
+                                                        @if ($submission->is_late)
+                                                            <flux:badge variant="warning">{{ __('Late') }}</flux:badge>
+                                                        @endif
+                                                        @if ($submission->graded_at)
+                                                            <flux:badge variant="success">{{ __('Graded') }}</flux:badge>
+                                                        @endif
+                                                    </div>
+                                                </div>
+
+                                                <div class="mt-3 grid gap-3 md:grid-cols-3">
+                                                    <flux:input
+                                                        wire:model="submissionScores.{{ $submission->id }}"
+                                                        :label="__('Score (out of :max)', ['max' => $assignment->max_score])"
+                                                        type="number"
+                                                        min="0"
+                                                        max="{{ $assignment->max_score }}"
+                                                        step="0.01"
+                                                        placeholder="{{ $submission->score }}"
+                                                    />
+
+                                                    <div class="md:col-span-2 space-y-1">
+                                                        <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Feedback') }}</label>
+                                                        <textarea
+                                                            wire:model="submissionFeedbacks.{{ $submission->id }}"
+                                                            rows="2"
+                                                            class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                                                            placeholder="{{ $submission->feedback ?? __('Optional feedback') }}"
+                                                        ></textarea>
+                                                    </div>
+                                                </div>
+
+                                                <div class="mt-3 flex justify-end">
+                                                    <flux:button size="sm" variant="primary" wire:click="gradeAssignmentSubmission({{ $submission->id }})">
+                                                        {{ __('Save score & feedback') }}
+                                                    </flux:button>
+                                                </div>
+                                            </div>
+                                        @empty
+                                            <div class="text-sm text-zinc-500">{{ __('No submissions yet for this assignment.') }}</div>
+                                        @endforelse
+                                    </div>
+                                @endif
+                            </div>
+                        @empty
+                            <div class="rounded-xl border border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-700">
+                                {{ __('No assignments published yet.') }}
+                            </div>
+                        @endforelse
+                    </div>
+                @else
+                    <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
+                        {{ __('Enroll in this class to access assignments.') }}
                     </div>
                 @endif
             @endif

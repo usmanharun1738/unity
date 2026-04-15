@@ -37,7 +37,7 @@ class AssignmentPolicy
         if ($user->hasRole(RoleName::Student->value)) {
             return $user->enrollments()
                 ->where('course_id', $assignment->course_id)
-                ->where('status', 'active')
+                ->whereIn('status', ['active', 'enrolled'])
                 ->exists();
         }
 

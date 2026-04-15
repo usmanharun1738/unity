@@ -89,3 +89,71 @@ Assignments: due dates + submissions + late policy in Phase 4.
 Grading: gradebook + feedback + CSV in Phase 5.
 Quizzes: MCQ + short answer + attempts/time limits in Phase 6.
 Calendar: cross-course deadline dashboard in Phase 7.
+
+
+
+# Student Management System - Architecture Plan
+
+## Current State
+- **Framework**: Laravel 13.4, Livewire 4.2, Flux UI 2.13
+- **Database**: SQLite
+- **Auth**: Fortify + Spatie Permissions
+- **Existing Models**: User, StudentProfile, FacultyProfile, Course, Enrollment, Department
+- **Roles**: Admin, DepartmentStaff, Faculty, Student (assumed)
+
+## New Modules Required
+
+### 1. **Global Navigation & Sidebar**
+- Add "Students" tab to primary sidebar
+- Links to Student Directory/Dashboard
+- Visibility: Admin, Faculty (for their enrollments), possibly Students (for class directory)
+
+### 2. **Teacher/Lecturer Workspace**
+- Roster View: All students in instructor's courses
+- Individual Student Profiles with:
+  - Assessment Logging (CA, Tests, Assignments, Quizzes, Projects)
+  - Attendance Tracking
+  - Exam & Final Grade Management
+
+### 3. **Student Portal (Self-Service)**
+- Submission Center: Upload assignments, submit quizzes
+- Performance Tracking: Real-time gradebook
+- Attendance Monitor: Track own attendance
+
+### 4. **Admin Oversight**
+- Activity Logs: Login frequency, submission timestamps
+- Centralized Gradebook: All CA and Final Grades
+- System Audit: Override/verify grades
+
+## Database Schema Design
+
+### New Tables Needed:
+1. **grades** - CA, Tests, Assignments, Quizzes, Projects, Exam, Final
+2. **attendance** - Daily attendance tracking
+3. **assessment_logs** - Historical record of assessments
+4. **assignments** - Assignment definitions per course
+5. **assignment_submissions** - Student submissions
+6. **quizzes** - Quiz definitions
+7. **quiz_responses** - Student quiz answers
+8. **activity_logs** - Admin audit trail
+
+## Implementation Phases
+1. ✅ Database design & migrations - COMPLETED
+2. ✅ Models & Relationships - COMPLETED  
+3. ✅ Factories & Test Data - COMPLETED
+4. ✅ Livewire Components & UI - COMPLETED
+5. ⏳ Policies & Authorization
+6. ⏳ Actions & Business Logic
+7. ⏳ Student Portal Components
+8. ⏳ Tests & Validation
+
+## Phase 1-2 Summary
+- **8 Tables**: Created all with proper constraints
+- **8 Models**: Grade, Attendance, Assignment, AssignmentSubmission, Quiz, QuizResponse, AssessmentLog, ActivityLog
+- **8 Factories**: All with realistic test data
+- **Updated Models**: User (+6 relationships), Course (+6 relationships)
+- **Components**: Directory (Admin), MyClasses (Faculty), Show (Student Profile)
+- **Views**: 3 Blade views with Flux UI components
+- **Routes**: 4 new routes with proper role-based middleware
+- **Navigation**: Sidebar updated with role-aware "Students" tab
+- **Features**: Search, filter, sort, pagination, assessment logging, auto-calculated grades
