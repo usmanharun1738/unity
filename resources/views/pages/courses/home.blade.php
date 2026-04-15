@@ -365,17 +365,9 @@ new #[Title('Course Home')] class extends Component
             <span>{{ __('Course Home') }}</span>
         </div>
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <flux:heading size="xl">{{ $course->title }}</flux:heading>
-                <flux:subheading>{{ $course->department?->name }} · {{ $course->code }}</flux:subheading>
-            </div>
-
-            @if ($this->canManageCourse)
-                <flux:button variant="ghost" :href="route('courses.show', $course)" wire:navigate>
-                    {{ __('Manage class') }}
-                </flux:button>
-            @endif
+        <div>
+            <flux:heading size="xl">{{ $course->title }}</flux:heading>
+            <flux:subheading>{{ $course->department?->name }} · {{ $course->code }}</flux:subheading>
         </div>
     </div>
 
