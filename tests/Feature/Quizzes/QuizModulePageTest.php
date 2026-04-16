@@ -7,6 +7,7 @@ use App\Models\Course;
 use App\Models\FacultyProfile;
 use App\Models\Grade;
 use App\Models\Quiz;
+use App\Models\QuizQuestion;
 use App\Models\QuizResponse;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -98,6 +99,59 @@ class QuizModulePageTest extends TestCase
         ]);
     }
 
+    public function test_faculty_can_add_objective_question_to_quiz(): void
+    {
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+
+        $quiz = $course->quizzes()->save(Quiz::factory()->make([
+            'title' => 'Objective Quiz',
+            'max_score' => 20,
+        ]));
+
+        Livewire::actingAs($instructor)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->set('selected_quiz_id', $quiz->id)
+            ->set('question_prompt', 'Which one is a PHP framework?')
+            ->set('question_points', '5')
+            ->set('question_options', ['Laravel', 'TensorFlow', 'NumPy', 'Pandas'])
+            ->set('question_correct_options', [0])
+            ->call('addObjectiveQuestion')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quiz_questions', [
+            'quiz_id' => $quiz->id,
+            'question_type' => 'objective',
+            'prompt' => 'Which one is a PHP framework?',
+        ]);
+    }
+
+    public function test_faculty_can_add_theory_question_to_quiz(): void
+    {
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+
+        $quiz = $course->quizzes()->save(Quiz::factory()->make([
+            'title' => 'Theory Quiz',
+            'max_score' => 20,
+        ]));
+
+        Livewire::actingAs($instructor)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->set('selected_quiz_id', $quiz->id)
+            ->set('theory_question_prompt', 'Explain the MVC architecture.')
+            ->set('theory_question_points', '10')
+            ->set('theory_question_rubric', 'Mention model, view, and controller roles.')
+            ->call('addTheoryQuestion')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('quiz_questions', [
+            'quiz_id' => $quiz->id,
+            'question_type' => 'theory',
+            'prompt' => 'Explain the MVC architecture.',
+        ]);
+    }
+
     public function test_faculty_can_create_quiz_for_owned_course_without_quizzes_manage_permission(): void
     {
         ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
@@ -181,6 +235,190 @@ class QuizModulePageTest extends TestCase
 
         $this->assertNotNull($grade);
         $this->assertEquals(80, $grade->quiz_score);
+    }
+
+    public function test_student_can_submit_objective_quiz_and_get_auto_graded(): void
+    {
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+        ['student' => $student] = $this->createStudent();
+
+        $course->students()->attach($student, ['status' => 'enrolled']);
+
+        $quiz = $course->quizzes()->save(Quiz::factory()->make([
+            'title' => 'Auto Grade Quiz',
+            'max_score' => 10,
+            'pass_score' => 6,
+        ]));
+
+        $questionOne = QuizQuestion::factory()->create([
+            'quiz_id' => $quiz->id,
+            'prompt' => 'Select Laravel',
+            'points' => 2,
+            'options' => ['Laravel', 'React'],
+            'correct_options' => [0],
+            'display_order' => 1,
+        ]);
+
+        $questionTwo = QuizQuestion::factory()->create([
+            'quiz_id' => $quiz->id,
+            'prompt' => 'Select PHP creator',
+            'points' => 3,
+            'options' => ['Guido', 'Rasmus'],
+            'correct_options' => [1],
+            'display_order' => 2,
+        ]);
+
+        Livewire::actingAs($student)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->set("attemptAnswers.{$quiz->id}.{$questionOne->id}", 0)
+            ->set("attemptAnswers.{$quiz->id}.{$questionTwo->id}", 1)
+            ->call('submitObjectiveAttempt', $quiz->id)
+            ->assertHasNoErrors();
+
+        $response = QuizResponse::query()->where([
+            'quiz_id' => $quiz->id,
+            'user_id' => $student->id,
+        ])->first();
+
+        $this->assertNotNull($response);
+        $this->assertEquals(10, (float) $response->score);
+        $this->assertTrue((bool) $response->is_passed);
+
+        $grade = Grade::query()->where([
+            'user_id' => $student->id,
+            'course_id' => $course->id,
+        ])->first();
+
+        $this->assertNotNull($grade);
+        $this->assertEquals(100, (float) $grade->quiz_score);
+    }
+
+    public function test_student_mixed_quiz_submission_is_pending_manual_until_theory_graded(): void
+    {
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+        ['student' => $student] = $this->createStudent();
+
+        $course->students()->attach($student, ['status' => 'enrolled']);
+
+        $quiz = $course->quizzes()->save(Quiz::factory()->make([
+            'title' => 'Mixed Quiz',
+            'max_score' => 10,
+            'pass_score' => 6,
+        ]));
+
+        $objectiveQuestion = QuizQuestion::factory()->create([
+            'quiz_id' => $quiz->id,
+            'question_type' => 'objective',
+            'prompt' => 'Select Laravel',
+            'points' => 2,
+            'options' => ['Laravel', 'React'],
+            'correct_options' => [0],
+            'display_order' => 1,
+        ]);
+
+        $theoryQuestion = QuizQuestion::factory()->create([
+            'quiz_id' => $quiz->id,
+            'question_type' => 'theory',
+            'prompt' => 'Explain service container.',
+            'rubric_text' => 'Mention dependency resolution.',
+            'points' => 3,
+            'options' => [],
+            'correct_options' => [],
+            'display_order' => 2,
+        ]);
+
+        Livewire::actingAs($student)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->set("attemptAnswers.{$quiz->id}.{$objectiveQuestion->id}", 0)
+            ->set("attemptAnswers.{$quiz->id}.{$theoryQuestion->id}", 'It resolves class dependencies automatically.')
+            ->call('submitQuizAttempt', $quiz->id)
+            ->assertHasNoErrors();
+
+        $response = QuizResponse::query()->where([
+            'quiz_id' => $quiz->id,
+            'user_id' => $student->id,
+        ])->first();
+
+        $this->assertNotNull($response);
+        $this->assertEquals('pending_manual', $response->response_data['grading_status'] ?? null);
+        $this->assertNull($response->is_passed);
+
+        $grade = Grade::query()->where([
+            'user_id' => $student->id,
+            'course_id' => $course->id,
+        ])->first();
+
+        $this->assertNull($grade);
+    }
+
+    public function test_instructor_can_manually_grade_theory_response_and_finalize_quiz_score(): void
+    {
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+        ['student' => $student] = $this->createStudent();
+
+        $course->students()->attach($student, ['status' => 'enrolled']);
+
+        $quiz = $course->quizzes()->save(Quiz::factory()->make([
+            'title' => 'Manual Theory Grading Quiz',
+            'max_score' => 10,
+            'pass_score' => 6,
+        ]));
+
+        $objectiveQuestion = QuizQuestion::factory()->create([
+            'quiz_id' => $quiz->id,
+            'question_type' => 'objective',
+            'prompt' => 'Select Laravel',
+            'points' => 2,
+            'options' => ['Laravel', 'React'],
+            'correct_options' => [0],
+            'display_order' => 1,
+        ]);
+
+        $theoryQuestion = QuizQuestion::factory()->create([
+            'quiz_id' => $quiz->id,
+            'question_type' => 'theory',
+            'prompt' => 'Explain service container.',
+            'rubric_text' => 'Mention dependency resolution.',
+            'points' => 3,
+            'options' => [],
+            'correct_options' => [],
+            'display_order' => 2,
+        ]);
+
+        Livewire::actingAs($student)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->set("attemptAnswers.{$quiz->id}.{$objectiveQuestion->id}", 0)
+            ->set("attemptAnswers.{$quiz->id}.{$theoryQuestion->id}", 'It resolves dependencies for classes and interfaces.')
+            ->call('submitQuizAttempt', $quiz->id)
+            ->assertHasNoErrors();
+
+        $response = QuizResponse::query()->where([
+            'quiz_id' => $quiz->id,
+            'user_id' => $student->id,
+        ])->firstOrFail();
+
+        Livewire::actingAs($instructor)
+            ->test('pages::quizzes.index')
+            ->set('theoryQuestionScores', [$response->id => [$theoryQuestion->id => 3]])
+            ->set('theoryQuestionFeedbacks', [$response->id => [$theoryQuestion->id => 'Good explanation']])
+            ->call('gradeTheoryResponse', $response->id, $theoryQuestion->id)
+            ->assertHasNoErrors();
+
+        $response->refresh();
+        $this->assertEquals('graded', $response->response_data['grading_status'] ?? null);
+        $this->assertEquals(10, (float) $response->score);
+        $this->assertTrue((bool) $response->is_passed);
+
+        $grade = Grade::query()->where([
+            'user_id' => $student->id,
+            'course_id' => $course->id,
+        ])->first();
+
+        $this->assertNotNull($grade);
+        $this->assertEquals(100, (float) $grade->quiz_score);
     }
 
     public function test_sidebar_shows_quizzes_navigation_link(): void

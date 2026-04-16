@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\Quiz;
+use App\Models\QuizQuestion;
 use App\Models\QuizResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -33,8 +34,35 @@ new #[Title('Quizzes')] class extends Component
 
     public ?int $selected_quiz_id = null;
 
+    public string $question_prompt = '';
+
+    public bool $question_allows_multiple = false;
+
+    public string $question_points = '1';
+
+    public string $theory_question_prompt = '';
+
+    public string $theory_question_points = '1';
+
+    public string $theory_question_rubric = '';
+
+    /** @var array<int, string> */
+    public array $question_options = ['', '', '', ''];
+
+    /** @var array<int, int|string> */
+    public array $question_correct_options = [];
+
     /** @var array<int, string|int|float|null> */
     public array $quizResponseScores = [];
+
+    /** @var array<int, array<int, int|string|array<int, int|string>|null>> */
+    public array $attemptAnswers = [];
+
+    /** @var array<int, array<int, string|int|float|null>> */
+    public array $theoryQuestionScores = [];
+
+    /** @var array<int, array<int, string|null>> */
+    public array $theoryQuestionFeedbacks = [];
 
     public function mount(): void
     {
@@ -148,7 +176,8 @@ new #[Title('Quizzes')] class extends Component
 
         return $this->selectedCourse->quizzes()
             ->withCount('responses')
-            ->with(['responses.student'])
+            ->withCount('questions')
+            ->with(['responses.student', 'questions'])
             ->orderBy('display_order')
             ->orderBy('created_at')
             ->get();
@@ -197,6 +226,16 @@ new #[Title('Quizzes')] class extends Component
         }
 
         return $this->selectedQuiz->responses;
+    }
+
+    #[Computed]
+    public function selectedQuizQuestions()
+    {
+        if (! $this->selectedQuiz) {
+            return collect();
+        }
+
+        return $this->selectedQuiz->questions;
     }
 
     public function openGradingPanel(int $quizId): void
@@ -248,6 +287,381 @@ new #[Title('Quizzes')] class extends Component
         $this->selected_quiz_id = $quiz->id;
 
         $this->successToast(__('Quiz created successfully.'));
+    }
+
+    public function addObjectiveQuestion(): void
+    {
+        if (! $this->selectedQuiz) {
+            abort(403);
+        }
+
+        Gate::authorize('update', $this->selectedQuiz);
+
+        $validated = $this->validate([
+            'question_prompt' => ['required', 'string', 'max:2000'],
+            'question_points' => ['required', 'numeric', 'min:0.25', 'max:100'],
+            'question_options' => ['required', 'array', 'min:2', 'max:8'],
+            'question_options.*' => ['required', 'string', 'max:255'],
+            'question_correct_options' => ['required', 'array', 'min:1'],
+            'question_correct_options.*' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $normalizedOptions = collect($validated['question_options'])
+            ->map(fn (string $option): string => trim($option))
+            ->filter(fn (string $option): bool => $option !== '')
+            ->values();
+
+        if ($normalizedOptions->count() < 2) {
+            $this->addError('question_options', __('At least two options are required.'));
+
+            return;
+        }
+
+        if ($normalizedOptions->count() !== $normalizedOptions->unique()->count()) {
+            $this->addError('question_options', __('Options must be unique.'));
+
+            return;
+        }
+
+        $correctOptionIndexes = collect($validated['question_correct_options'])
+            ->map(fn ($index): int => (int) $index)
+            ->unique()
+            ->sort()
+            ->values();
+
+        $maxIndex = $normalizedOptions->count() - 1;
+        $invalidIndex = $correctOptionIndexes->first(fn (int $index): bool => $index < 0 || $index > $maxIndex);
+
+        if ($invalidIndex !== null) {
+            $this->addError('question_correct_options', __('Correct option selection is invalid.'));
+
+            return;
+        }
+
+        $displayOrder = ((int) QuizQuestion::query()->where('quiz_id', $this->selectedQuiz->id)->max('display_order')) + 1;
+
+        QuizQuestion::query()->create([
+            'quiz_id' => $this->selectedQuiz->id,
+            'question_type' => 'objective',
+            'prompt' => trim($validated['question_prompt']),
+            'allows_multiple' => (bool) $this->question_allows_multiple,
+            'options' => $normalizedOptions->all(),
+            'correct_options' => $correctOptionIndexes->all(),
+            'points' => $validated['question_points'],
+            'display_order' => $displayOrder,
+        ]);
+
+        $this->reset(['question_prompt', 'question_allows_multiple', 'question_points', 'question_correct_options']);
+        $this->question_points = '1';
+        $this->question_options = ['', '', '', ''];
+
+        $this->successToast(__('Objective question added successfully.'));
+    }
+
+    public function addTheoryQuestion(): void
+    {
+        if (! $this->selectedQuiz) {
+            abort(403);
+        }
+
+        Gate::authorize('update', $this->selectedQuiz);
+
+        $validated = $this->validate([
+            'theory_question_prompt' => ['required', 'string', 'max:4000'],
+            'theory_question_points' => ['required', 'numeric', 'min:0.25', 'max:100'],
+            'theory_question_rubric' => ['nullable', 'string', 'max:4000'],
+        ]);
+
+        $displayOrder = ((int) QuizQuestion::query()->where('quiz_id', $this->selectedQuiz->id)->max('display_order')) + 1;
+
+        QuizQuestion::query()->create([
+            'quiz_id' => $this->selectedQuiz->id,
+            'question_type' => 'theory',
+            'prompt' => trim($validated['theory_question_prompt']),
+            'rubric_text' => $validated['theory_question_rubric'] !== '' ? $validated['theory_question_rubric'] : null,
+            'allows_multiple' => false,
+            'options' => [],
+            'correct_options' => [],
+            'points' => $validated['theory_question_points'],
+            'display_order' => $displayOrder,
+        ]);
+
+        $this->reset(['theory_question_prompt', 'theory_question_points', 'theory_question_rubric']);
+        $this->theory_question_points = '1';
+
+        $this->successToast(__('Theory question added successfully.'));
+    }
+
+    public function submitQuizAttempt(int $quizId): void
+    {
+        $quiz = Quiz::query()
+            ->whereHas('course', fn ($query) => $query->whereIn('id', $this->availableCourses->pluck('id')->all()))
+            ->with('questions')
+            ->findOrFail($quizId);
+
+        Gate::authorize('view', $quiz);
+
+        if (! auth()->user()->studentProfile()->exists()) {
+            abort(403);
+        }
+
+        $isEnrolled = Enrollment::query()
+            ->where('course_id', $quiz->course_id)
+            ->where('user_id', auth()->id())
+            ->whereIn('status', ['active', 'enrolled'])
+            ->exists();
+
+        if (! $isEnrolled) {
+            abort(403);
+        }
+
+        $questions = $quiz->questions->values();
+
+        if ($questions->isEmpty()) {
+            $this->addError('attemptAnswers', __('This quiz has no questions configured yet.'));
+
+            return;
+        }
+
+        $answers = $this->attemptAnswers[$quizId] ?? [];
+        $payload = [];
+        $totalAwarded = 0.0;
+        $totalPossible = (float) $questions->sum(fn (QuizQuestion $question): float => (float) $question->points);
+        $hasTheoryQuestions = false;
+
+        foreach ($questions as $question) {
+            $rawAnswer = $answers[$question->id] ?? null;
+
+            if ($question->question_type === 'theory') {
+                $hasTheoryQuestions = true;
+                $answerText = trim((string) $rawAnswer);
+
+                if ($answerText === '') {
+                    $this->addError("attemptAnswers.$quizId.$question->id", __('Please answer all questions before submitting.'));
+
+                    return;
+                }
+
+                $payload[(string) $question->id] = [
+                    'question_type' => 'theory',
+                    'answer_text' => $answerText,
+                    'awarded_points' => null,
+                    'graded' => false,
+                    'feedback' => null,
+                ];
+
+                continue;
+            }
+
+            if ($question->allows_multiple) {
+                $selected = collect(is_array($rawAnswer) ? $rawAnswer : [])
+                    ->map(fn ($value): int => (int) $value)
+                    ->unique()
+                    ->sort()
+                    ->values();
+            } else {
+                if ($rawAnswer === null || $rawAnswer === '') {
+                    $this->addError("attemptAnswers.$quizId.$question->id", __('Please answer all questions before submitting.'));
+
+                    return;
+                }
+
+                $selected = collect([(int) $rawAnswer]);
+            }
+
+            if ($selected->isEmpty()) {
+                $this->addError("attemptAnswers.$quizId.$question->id", __('Please answer all questions before submitting.'));
+
+                return;
+            }
+
+            $correct = collect($question->correct_options ?? [])->map(fn ($value): int => (int) $value)->sort()->values();
+            $isCorrect = $selected->values()->all() === $correct->values()->all();
+            $awardedPoints = $isCorrect ? (float) $question->points : 0.0;
+
+            $payload[(string) $question->id] = [
+                'question_type' => 'objective',
+                'selected_options' => $selected->values()->all(),
+                'correct_options' => $correct->values()->all(),
+                'is_correct' => $isCorrect,
+                'awarded_points' => round($awardedPoints, 2),
+            ];
+
+            $totalAwarded += $awardedPoints;
+        }
+
+        $score = $totalPossible > 0
+            ? round(($totalAwarded / $totalPossible) * (float) $quiz->max_score, 2)
+            : 0.0;
+
+        $gradingStatus = $hasTheoryQuestions ? 'pending_manual' : 'graded';
+
+        $response = QuizResponse::query()->updateOrCreate(
+            [
+                'quiz_id' => $quiz->id,
+                'user_id' => auth()->id(),
+            ],
+            [
+                'response_data' => [
+                    'answers' => $payload,
+                    'grading_status' => $gradingStatus,
+                    'total_awarded_points' => round($totalAwarded, 2),
+                    'total_possible_points' => round($totalPossible, 2),
+                ],
+                'score' => $score,
+                'submitted_at' => now(),
+                'time_taken_seconds' => null,
+                'is_passed' => (! $hasTheoryQuestions && $quiz->pass_score !== null)
+                    ? $score >= (float) $quiz->pass_score
+                    : null,
+            ],
+        );
+
+        if (! $hasTheoryQuestions) {
+            $this->syncQuizAggregateGradeForStudent((int) auth()->id(), (int) $quiz->course_id);
+
+            AssessmentLog::query()->updateOrCreate(
+                [
+                    'user_id' => $response->user_id,
+                    'course_id' => $quiz->course_id,
+                    'assessment_type' => 'quiz',
+                    'assessment_name' => 'Quiz: '.$quiz->title,
+                ],
+                [
+                    'score' => $response->score,
+                    'max_score' => $quiz->max_score,
+                    'assessed_by' => auth()->id(),
+                    'assessed_at' => now(),
+                    'notes' => null,
+                    'created_at' => now(),
+                ],
+            );
+        }
+
+        $this->successToast($hasTheoryQuestions
+            ? __('Quiz submitted. Waiting for instructor to grade theory answers.')
+            : __('Quiz submitted and auto-graded successfully.'));
+    }
+
+    public function submitObjectiveAttempt(int $quizId): void
+    {
+        $this->submitQuizAttempt($quizId);
+    }
+
+    public function gradeTheoryResponse(int $responseId, int $questionId): void
+    {
+        $response = QuizResponse::query()
+            ->whereHas('quiz', fn ($query) => $query->whereIn('course_id', $this->availableCourses->pluck('id')->all()))
+            ->with(['quiz.questions'])
+            ->findOrFail($responseId);
+
+        Gate::authorize('update', $response->quiz);
+
+        $question = $response->quiz->questions->firstWhere('id', $questionId);
+
+        if (! $question || $question->question_type !== 'theory') {
+            abort(404);
+        }
+
+        $scoreInput = $this->theoryQuestionScores[$responseId][$questionId] ?? null;
+        $feedbackInput = $this->theoryQuestionFeedbacks[$responseId][$questionId] ?? null;
+
+        $validated = validator([
+            'score' => $scoreInput,
+            'feedback' => $feedbackInput,
+        ], [
+            'score' => ['required', 'numeric', 'min:0', 'max:'.$question->points],
+            'feedback' => ['nullable', 'string', 'max:4000'],
+        ])->validate();
+
+        DB::transaction(function () use ($response, $validated, $responseId, $questionId): void {
+            $data = is_array($response->response_data) ? $response->response_data : [];
+            $answers = is_array($data['answers'] ?? null) ? $data['answers'] : [];
+
+            if (! isset($answers[(string) $questionId]) || ! is_array($answers[(string) $questionId])) {
+                $answers[(string) $questionId] = [
+                    'question_type' => 'theory',
+                    'answer_text' => null,
+                    'awarded_points' => null,
+                    'graded' => false,
+                    'feedback' => null,
+                ];
+            }
+
+            $answers[(string) $questionId]['awarded_points'] = round((float) $validated['score'], 2);
+            $answers[(string) $questionId]['graded'] = true;
+            $answers[(string) $questionId]['feedback'] = $validated['feedback'] !== '' ? $validated['feedback'] : null;
+
+            $totalPossible = (float) $response->quiz->questions->sum(fn (QuizQuestion $quizQuestion): float => (float) $quizQuestion->points);
+            $totalAwarded = 0.0;
+            $hasPendingTheory = false;
+
+            foreach ($response->quiz->questions as $quizQuestion) {
+                $entry = $answers[(string) $quizQuestion->id] ?? null;
+
+                if (! is_array($entry)) {
+                    if ($quizQuestion->question_type === 'theory') {
+                        $hasPendingTheory = true;
+                    }
+
+                    continue;
+                }
+
+                $awardedPoints = $entry['awarded_points'] ?? null;
+
+                if ($quizQuestion->question_type === 'theory' && ! ($entry['graded'] ?? false)) {
+                    $hasPendingTheory = true;
+                }
+
+                if (is_numeric($awardedPoints)) {
+                    $totalAwarded += (float) $awardedPoints;
+                }
+            }
+
+            $gradingStatus = $hasPendingTheory ? 'pending_manual' : 'graded';
+            $score = $totalPossible > 0
+                ? round(($totalAwarded / $totalPossible) * (float) $response->quiz->max_score, 2)
+                : 0.0;
+
+            $data['answers'] = $answers;
+            $data['grading_status'] = $gradingStatus;
+            $data['total_awarded_points'] = round($totalAwarded, 2);
+            $data['total_possible_points'] = round($totalPossible, 2);
+
+            $response->update([
+                'response_data' => $data,
+                'score' => $score,
+                'is_passed' => ($gradingStatus === 'graded' && $response->quiz->pass_score !== null)
+                    ? $score >= (float) $response->quiz->pass_score
+                    : null,
+            ]);
+
+            if ($gradingStatus === 'graded') {
+                AssessmentLog::query()->updateOrCreate(
+                    [
+                        'user_id' => $response->user_id,
+                        'course_id' => $response->quiz->course_id,
+                        'assessment_type' => 'quiz',
+                        'assessment_name' => 'Quiz: '.$response->quiz->title,
+                    ],
+                    [
+                        'score' => $response->score,
+                        'max_score' => $response->quiz->max_score,
+                        'assessed_by' => auth()->id(),
+                        'assessed_at' => now(),
+                        'notes' => null,
+                        'created_at' => now(),
+                    ],
+                );
+
+                $this->syncQuizAggregateGradeForStudent((int) $response->user_id, (int) $response->quiz->course_id);
+            }
+
+            $this->theoryQuestionScores[$responseId][$questionId] = (string) round((float) $validated['score'], 2);
+            $this->theoryQuestionFeedbacks[$responseId][$questionId] = $answers[(string) $questionId]['feedback'];
+        });
+
+        $this->successToast(__('Theory response graded successfully.'));
     }
 
     public function gradeQuizResponse(int $responseId): void
@@ -422,6 +836,60 @@ new #[Title('Quizzes')] class extends Component
                 <flux:button variant="primary" type="submit">{{ __('Create Quiz') }}</flux:button>
             </form>
 
+            @if ($this->selectedQuiz)
+                <form wire:submit="addObjectiveQuestion" class="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                    <flux:heading size="lg">{{ __('Objective Question Builder') }}</flux:heading>
+                    <flux:subheading>{{ __('Adding questions to: :quiz', ['quiz' => $this->selectedQuiz->title]) }}</flux:subheading>
+
+                    <div>
+                        <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Question Prompt') }}</label>
+                        <textarea wire:model="question_prompt" rows="3" class="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"></textarea>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <flux:input wire:model="question_points" :label="__('Points')" type="number" step="0.25" min="0.25" required />
+                        <label class="flex items-center gap-2 pt-7 text-sm text-zinc-700 dark:text-zinc-200">
+                            <input wire:model="question_allows_multiple" type="checkbox" class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
+                            {{ __('Allow multiple correct answers') }}
+                        </label>
+                    </div>
+
+                    <div class="grid gap-3 md:grid-cols-2">
+                        @foreach ($question_options as $index => $option)
+                            <div class="space-y-2 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                                <flux:input wire:model="question_options.{{ $index }}" :label="__('Option :n', ['n' => $index + 1])" type="text" required />
+                                <label class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
+                                    <input wire:model="question_correct_options" type="checkbox" value="{{ $index }}" class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500" />
+                                    {{ __('Mark as correct') }}
+                                </label>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <flux:button variant="primary" type="submit">{{ __('Add Objective Question') }}</flux:button>
+                </form>
+
+                <form wire:submit="addTheoryQuestion" class="space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                    <flux:heading size="lg">{{ __('Theory Question Builder') }}</flux:heading>
+                    <flux:subheading>{{ __('Add short/long answer theory questions requiring manual grading.') }}</flux:subheading>
+
+                    <div>
+                        <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Theory Prompt') }}</label>
+                        <textarea wire:model="theory_question_prompt" rows="3" class="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"></textarea>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <flux:input wire:model="theory_question_points" :label="__('Points')" type="number" step="0.25" min="0.25" required />
+                        <div>
+                            <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Rubric (optional)') }}</label>
+                            <textarea wire:model="theory_question_rubric" rows="2" class="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"></textarea>
+                        </div>
+                    </div>
+
+                    <flux:button variant="primary" type="submit">{{ __('Add Theory Question') }}</flux:button>
+                </form>
+            @endif
+
             <div class="grid gap-4 lg:grid-cols-2">
                 <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                     <flux:heading size="lg">{{ __('Instructor Quiz List') }}</flux:heading>
@@ -432,10 +900,12 @@ new #[Title('Quizzes')] class extends Component
                                 <div class="flex items-start justify-between gap-3">
                                     <div>
                                         <h3 class="font-medium text-zinc-900 dark:text-zinc-100">{{ $quiz->title }}</h3>
-                                        <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ __('Max :max · :count responses', ['max' => $quiz->max_score, 'count' => $quiz->responses_count]) }}</p>
+                                        <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                                            {{ __('Max :max · :questions questions · :responses responses', ['max' => $quiz->max_score, 'questions' => $quiz->questions_count, 'responses' => $quiz->responses_count]) }}
+                                        </p>
                                     </div>
                                     <flux:button size="sm" variant="ghost" wire:click="openGradingPanel({{ $quiz->id }})">
-                                        {{ __('Grade Responses') }}
+                                        {{ __('Open') }}
                                     </flux:button>
                                 </div>
                             </div>
@@ -453,45 +923,90 @@ new #[Title('Quizzes')] class extends Component
                             {{ __('Quiz: :title (Max :max)', ['title' => $this->selectedQuiz->title, 'max' => $this->selectedQuiz->max_score]) }}
                         </div>
 
-                        <div class="mt-4 overflow-x-auto">
-                            <table class="min-w-full text-left text-sm">
-                                <thead class="bg-zinc-50 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
-                                    <tr>
-                                        <th class="px-3 py-2 font-medium">{{ __('Student') }}</th>
-                                        <th class="px-3 py-2 font-medium">{{ __('Submitted') }}</th>
-                                        <th class="px-3 py-2 font-medium">{{ __('Score') }}</th>
-                                        <th class="px-3 py-2 font-medium text-right">{{ __('Action') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                                    @forelse ($this->selectedQuizResponses as $response)
-                                        <tr>
-                                            <td class="px-3 py-2">{{ $response->student?->name ?? __('Unknown') }}</td>
-                                            <td class="px-3 py-2 text-zinc-500">{{ optional($response->submitted_at)->format('M d, Y H:i') }}</td>
-                                            <td class="px-3 py-2">
-                                                <input
-                                                    wire:model="quizResponseScores.{{ $response->id }}"
-                                                    type="number"
-                                                    min="0"
-                                                    max="{{ $this->selectedQuiz->max_score }}"
-                                                    step="0.01"
-                                                    class="w-28 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                                                    placeholder="{{ $response->score ?? '0' }}"
-                                                />
-                                            </td>
-                                            <td class="px-3 py-2 text-right">
-                                                <flux:button size="sm" variant="primary" wire:click="gradeQuizResponse({{ $response->id }})">
-                                                    {{ __('Save') }}
-                                                </flux:button>
-                                            </td>
-                                        </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="4" class="px-3 py-6 text-center text-zinc-500">{{ __('No responses yet for the selected quiz.') }}</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
+                        <div class="mt-4 space-y-4">
+                            @forelse ($this->selectedQuizResponses as $response)
+                                @php($responseData = is_array($response->response_data) ? $response->response_data : [])
+                                @php($responseAnswers = is_array($responseData['answers'] ?? null) ? $responseData['answers'] : [])
+                                @php($theoryQuestions = $this->selectedQuizQuestions->where('question_type', 'theory')->values())
+
+                                <div class="rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
+                                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $response->student?->name ?? __('Unknown') }}</div>
+                                            <div class="text-xs text-zinc-500">{{ optional($response->submitted_at)->format('M d, Y H:i') }}</div>
+                                        </div>
+                                        <div class="text-xs text-zinc-500">
+                                            {{ __('Status: :status', ['status' => $responseData['grading_status'] ?? 'graded']) }}
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-3 flex items-end gap-3">
+                                        <div>
+                                            <label class="text-xs text-zinc-500">{{ __('Overall Score') }}</label>
+                                            <input
+                                                wire:model="quizResponseScores.{{ $response->id }}"
+                                                type="number"
+                                                min="0"
+                                                max="{{ $this->selectedQuiz->max_score }}"
+                                                step="0.01"
+                                                class="mt-1 w-28 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                                                placeholder="{{ $response->score ?? '0' }}"
+                                            />
+                                        </div>
+                                        <flux:button size="sm" variant="primary" wire:click="gradeQuizResponse({{ $response->id }})">
+                                            {{ __('Save Overall') }}
+                                        </flux:button>
+                                    </div>
+
+                                    @if ($theoryQuestions->isNotEmpty())
+                                        <div class="mt-4 space-y-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                                            <div class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ __('Theory Answers') }}</div>
+
+                                            @foreach ($theoryQuestions as $question)
+                                                @php($entry = $responseAnswers[(string) $question->id] ?? null)
+                                                <div class="rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
+                                                    <div class="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                                                        {{ $question->prompt }}
+                                                        <span class="text-xs text-zinc-500">({{ $question->points }} {{ __('pts') }})</span>
+                                                    </div>
+
+                                                    @if ($question->rubric_text)
+                                                        <div class="mt-1 text-xs text-zinc-500">{{ __('Rubric: :rubric', ['rubric' => $question->rubric_text]) }}</div>
+                                                    @endif
+
+                                                    <div class="mt-2 rounded bg-zinc-50 p-2 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                                                        {{ $entry['answer_text'] ?? __('No answer submitted.') }}
+                                                    </div>
+
+                                                    <div class="mt-3 grid gap-3 md:grid-cols-2">
+                                                        <flux:input
+                                                            wire:model="theoryQuestionScores.{{ $response->id }}.{{ $question->id }}"
+                                                            :label="__('Awarded Points')"
+                                                            type="number"
+                                                            step="0.25"
+                                                            min="0"
+                                                            max="{{ $question->points }}"
+                                                            placeholder="{{ $entry['awarded_points'] ?? '0' }}"
+                                                        />
+                                                        <div>
+                                                            <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Feedback (optional)') }}</label>
+                                                            <textarea wire:model="theoryQuestionFeedbacks.{{ $response->id }}.{{ $question->id }}" rows="2" class="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"></textarea>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="mt-3 text-right">
+                                                        <flux:button size="sm" variant="primary" wire:click="gradeTheoryResponse({{ $response->id }}, {{ $question->id }})">
+                                                            {{ __('Save Theory Grade') }}
+                                                        </flux:button>
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </div>
+                            @empty
+                                <p class="text-sm text-zinc-500">{{ __('No responses yet for the selected quiz.') }}</p>
+                            @endforelse
                         </div>
                     @else
                         <p class="mt-3 text-sm text-zinc-500">{{ __('Select a quiz from the instructor list to open grading.') }}</p>
@@ -505,6 +1020,9 @@ new #[Title('Quizzes')] class extends Component
                 <div class="mt-4 space-y-4">
                     @forelse ($this->quizzes as $quiz)
                         @php($myResponse = $this->myResponsesByQuiz->get($quiz->id))
+                        @php($myResponseData = is_array($myResponse?->response_data) ? $myResponse->response_data : [])
+                        @php($allQuestions = $quiz->questions->values())
+
                         <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
                             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
@@ -512,9 +1030,53 @@ new #[Title('Quizzes')] class extends Component
                                     <p class="text-sm text-zinc-500 dark:text-zinc-400">{{ $quiz->description ?: __('No description provided.') }}</p>
                                 </div>
                                 <div class="text-sm text-zinc-500 dark:text-zinc-400">
-                                    {{ __('Max: :max', ['max' => $quiz->max_score]) }}
+                                    {{ __('Max: :max · :count questions', ['max' => $quiz->max_score, 'count' => $allQuestions->count()]) }}
                                 </div>
                             </div>
+
+                            @if ($allQuestions->isNotEmpty())
+                                <form wire:submit.prevent="submitQuizAttempt({{ $quiz->id }})" class="mt-4 space-y-4">
+                                    @foreach ($allQuestions as $question)
+                                        <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                                            <div class="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                                                {{ $loop->iteration }}. {{ $question->prompt }}
+                                                <span class="text-xs text-zinc-500">({{ $question->points }} {{ __('pts') }})</span>
+                                            </div>
+
+                                            @if ($question->question_type === 'theory')
+                                                <div class="mt-2">
+                                                    <textarea wire:model="attemptAnswers.{{ $quiz->id }}.{{ $question->id }}" rows="4" class="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100" placeholder="{{ __('Type your answer...') }}"></textarea>
+                                                </div>
+                                            @else
+                                                <div class="mt-2 space-y-2">
+                                                    @foreach ($question->options as $optionIndex => $optionText)
+                                                        <label class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
+                                                            @if ($question->allows_multiple)
+                                                                <input
+                                                                    type="checkbox"
+                                                                    wire:model="attemptAnswers.{{ $quiz->id }}.{{ $question->id }}"
+                                                                    value="{{ $optionIndex }}"
+                                                                    class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                                                                />
+                                                            @else
+                                                                <input
+                                                                    type="radio"
+                                                                    wire:model="attemptAnswers.{{ $quiz->id }}.{{ $question->id }}"
+                                                                    value="{{ $optionIndex }}"
+                                                                    class="border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                                                                />
+                                                            @endif
+                                                            <span>{{ $optionText }}</span>
+                                                        </label>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @endforeach
+
+                                    <flux:button size="sm" variant="primary" type="submit">{{ __('Submit Quiz') }}</flux:button>
+                                </form>
+                            @endif
 
                             <div class="mt-3 rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800">
                                 <div class="text-zinc-600 dark:text-zinc-300">
@@ -524,7 +1086,7 @@ new #[Title('Quizzes')] class extends Component
                                     {{ __('Submitted: :date', ['date' => $myResponse?->submitted_at?->format('M d, Y H:i') ?? __('Not submitted')]) }}
                                 </div>
                                 <div class="mt-1 text-zinc-500 dark:text-zinc-400">
-                                    {{ __('Status: :status', ['status' => $myResponse?->is_passed === null ? __('Pending') : ($myResponse->is_passed ? __('Passed') : __('Not passed'))]) }}
+                                    {{ __('Status: :status', ['status' => $myResponseData['grading_status'] ?? ($myResponse?->is_passed === null ? __('Pending') : ($myResponse->is_passed ? __('Passed') : __('Not passed')))]) }}
                                 </div>
                             </div>
                         </div>
