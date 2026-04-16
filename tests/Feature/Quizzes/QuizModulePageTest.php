@@ -294,6 +294,49 @@ class QuizModulePageTest extends TestCase
         $this->assertEquals(100, (float) $grade->quiz_score);
     }
 
+    public function test_student_can_submit_multiple_answer_objective_question(): void
+    {
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+        ['student' => $student] = $this->createStudent();
+
+        $course->students()->attach($student, ['status' => 'enrolled']);
+
+        $quiz = $course->quizzes()->save(Quiz::factory()->make([
+            'title' => 'Multiple Answer Quiz',
+            'max_score' => 10,
+            'pass_score' => 6,
+        ]));
+
+        $question = QuizQuestion::factory()->create([
+            'quiz_id' => $quiz->id,
+            'question_type' => 'objective',
+            'prompt' => 'Select valid web technologies',
+            'points' => 10,
+            'allows_multiple' => true,
+            'options' => ['Laravel', 'SQLite', 'Git', 'Chair'],
+            'correct_options' => [0, 1, 2],
+            'display_order' => 1,
+        ]);
+
+        Livewire::actingAs($student)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->set("attemptAnswers.{$quiz->id}.{$question->id}.0", true)
+            ->set("attemptAnswers.{$quiz->id}.{$question->id}.1", true)
+            ->set("attemptAnswers.{$quiz->id}.{$question->id}.2", true)
+            ->call('submitObjectiveAttempt', $quiz->id)
+            ->assertHasNoErrors();
+
+        $response = QuizResponse::query()->where([
+            'quiz_id' => $quiz->id,
+            'user_id' => $student->id,
+        ])->first();
+
+        $this->assertNotNull($response);
+        $this->assertEquals(10, (float) $response->score);
+        $this->assertTrue((bool) $response->is_passed);
+    }
+
     public function test_student_mixed_quiz_submission_is_pending_manual_until_theory_graded(): void
     {
         ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();

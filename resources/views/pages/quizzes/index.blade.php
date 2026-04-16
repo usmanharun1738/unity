@@ -455,8 +455,9 @@ new #[Title('Quizzes')] class extends Component
 
             if ($question->allows_multiple) {
                 $selected = collect(is_array($rawAnswer) ? $rawAnswer : [])
+                    ->filter(fn ($value): bool => (bool) $value)
+                    ->keys()
                     ->map(fn ($value): int => (int) $value)
-                    ->unique()
                     ->sort()
                     ->values();
             } else {
@@ -1037,7 +1038,7 @@ new #[Title('Quizzes')] class extends Component
                             @if ($allQuestions->isNotEmpty())
                                 <form wire:submit.prevent="submitQuizAttempt({{ $quiz->id }})" class="mt-4 space-y-4">
                                     @foreach ($allQuestions as $question)
-                                        <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                                        <div wire:key="quiz-{{ $quiz->id }}-question-{{ $question->id }}" class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                                             <div class="text-sm font-medium text-zinc-800 dark:text-zinc-100">
                                                 {{ $loop->iteration }}. {{ $question->prompt }}
                                                 <span class="text-xs text-zinc-500">({{ $question->points }} {{ __('pts') }})</span>
@@ -1050,12 +1051,11 @@ new #[Title('Quizzes')] class extends Component
                                             @else
                                                 <div class="mt-2 space-y-2">
                                                     @foreach ($question->options as $optionIndex => $optionText)
-                                                        <label class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
+                                                        <label wire:key="quiz-{{ $quiz->id }}-question-{{ $question->id }}-option-{{ $optionIndex }}" class="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
                                                             @if ($question->allows_multiple)
                                                                 <input
                                                                     type="checkbox"
-                                                                    wire:model="attemptAnswers.{{ $quiz->id }}.{{ $question->id }}"
-                                                                    value="{{ $optionIndex }}"
+                                                                    wire:model="attemptAnswers.{{ $quiz->id }}.{{ $question->id }}.{{ $optionIndex }}"
                                                                     class="rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
                                                                 />
                                                             @else
