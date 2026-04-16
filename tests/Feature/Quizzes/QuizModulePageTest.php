@@ -292,6 +292,103 @@ class QuizModulePageTest extends TestCase
 
         $this->assertNotNull($grade);
         $this->assertEquals(100, (float) $grade->quiz_score);
+
+        $this->actingAs($student)
+            ->get(route('quizzes.index', ['course' => $course->id]))
+            ->assertOk()
+            ->assertSee('You have already submitted this quiz. It is no longer available for editing.')
+            ->assertDontSee('Submit Quiz');
+
+        Livewire::actingAs($student)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->set("attemptAnswers.{$quiz->id}.{$questionOne->id}", 1)
+            ->set("attemptAnswers.{$quiz->id}.{$questionTwo->id}", 0)
+            ->call('submitQuizAttempt', $quiz->id)
+            ->assertHasErrors('attemptAnswers');
+    }
+
+    public function test_student_can_start_timed_quiz_and_timing_is_persisted(): void
+    {
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+        ['student' => $student] = $this->createStudent();
+
+        $course->students()->attach($student, ['status' => 'enrolled']);
+
+        $quiz = $course->quizzes()->save(Quiz::factory()->make([
+            'title' => 'Timed Quiz',
+            'max_score' => 10,
+            'pass_score' => 6,
+            'time_limit_minutes' => 15,
+        ]));
+
+        QuizQuestion::factory()->create([
+            'quiz_id' => $quiz->id,
+            'prompt' => 'Select Laravel',
+            'points' => 10,
+            'options' => ['Laravel', 'React'],
+            'correct_options' => [0],
+            'display_order' => 1,
+        ]);
+
+        Livewire::actingAs($student)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->call('startQuizAttempt', $quiz->id)
+            ->assertHasNoErrors();
+
+        $response = QuizResponse::query()->where([
+            'quiz_id' => $quiz->id,
+            'user_id' => $student->id,
+        ])->first();
+
+        $this->assertNotNull($response);
+        $this->assertNotNull($response->started_at);
+        $this->assertNotNull($response->expires_at);
+        $this->assertNull($response->submitted_at);
+    }
+
+    public function test_student_cannot_submit_after_timer_expires(): void
+    {
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+        ['student' => $student] = $this->createStudent();
+
+        $course->students()->attach($student, ['status' => 'enrolled']);
+
+        $quiz = $course->quizzes()->save(Quiz::factory()->make([
+            'title' => 'Expired Quiz',
+            'max_score' => 10,
+            'pass_score' => 6,
+            'time_limit_minutes' => 15,
+        ]));
+
+        $question = QuizQuestion::factory()->create([
+            'quiz_id' => $quiz->id,
+            'prompt' => 'Select Laravel',
+            'points' => 10,
+            'options' => ['Laravel', 'React'],
+            'correct_options' => [0],
+            'display_order' => 1,
+        ]);
+
+        QuizResponse::query()->create([
+            'quiz_id' => $quiz->id,
+            'user_id' => $student->id,
+            'response_data' => ['answers' => [], 'grading_status' => 'in_progress'],
+            'score' => null,
+            'started_at' => now()->subMinutes(30),
+            'expires_at' => now()->subMinutes(15),
+            'submitted_at' => null,
+            'time_taken_seconds' => null,
+            'is_passed' => null,
+        ]);
+
+        Livewire::actingAs($student)
+            ->test('pages::quizzes.index')
+            ->set('course_id', $course->id)
+            ->set("attemptAnswers.{$quiz->id}.{$question->id}", 0)
+            ->call('submitQuizAttempt', $quiz->id)
+            ->assertHasErrors('attemptAnswers');
     }
 
     public function test_student_can_submit_multiple_answer_objective_question(): void
