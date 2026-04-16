@@ -881,7 +881,7 @@ new #[Title('Quizzes')] class extends Component
                     <div class="grid gap-4 md:grid-cols-2">
                         <flux:input wire:model="theory_question_points" :label="__('Points')" type="number" step="0.25" min="0.25" required />
                         <div>
-                            <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Rubric (optional)') }}</label>
+                            <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Grading rubric (optional)') }}</label>
                             <textarea wire:model="theory_question_rubric" rows="2" class="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-indigo-500 focus:ring dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"></textarea>
                         </div>
                     </div>
