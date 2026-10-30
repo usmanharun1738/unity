@@ -11,7 +11,7 @@
                     <flux:sidebar.collapse class="lg:hidden" />
                 </div>
                 <div class="flex w-full items-center justify-between px-2 text-[10px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 uppercase in-data-flux-sidebar-collapsed-desktop:hidden">
-                    <span>Unity University</span>
+                    <span>Kadploy University</span>
                     <span class="inline-flex items-center rounded-xs bg-amber-500/15 px-1 py-0.5 font-mono text-[9px] font-bold text-amber-700 dark:text-amber-400">ERP</span>
                 </div>
             </flux:sidebar.header>
