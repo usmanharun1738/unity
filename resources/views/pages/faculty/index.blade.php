@@ -149,12 +149,34 @@ new #[Title('Faculty')] class extends Component
         </div>
     @endif
 
-    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search by name or email')" />
-        <flux:button variant="ghost" icon="funnel">{{ __('Filters') }}</flux:button>
+    <!-- Search Toolbar Card -->
+    <div class="rounded-xl border border-zinc-200/80 bg-white p-3 shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
+        <div class="flex items-center justify-between gap-3">
+            <div class="relative flex-1 max-w-md">
+                <flux:input
+                    wire:model.live.debounce.300ms="search"
+                    size="sm"
+                    icon="magnifying-glass"
+                    :placeholder="__('Search faculty by name or email...')"
+                    clearable
+                />
+            </div>
+
+            @if ($this->search !== '')
+                <flux:button
+                    size="sm"
+                    variant="ghost"
+                    wire:click="$set('search', '')"
+                    icon="arrow-path"
+                    class="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                >
+                    {{ __('Reset') }}
+                </flux:button>
+            @endif
+        </div>
     </div>
 
-    <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+    <div class="overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
         <div class="overflow-x-auto">
             <table class="min-w-full text-left text-sm">
                 <thead class="bg-zinc-50 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">

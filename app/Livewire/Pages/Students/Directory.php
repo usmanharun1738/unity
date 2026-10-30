@@ -41,6 +41,10 @@ class Directory extends Component
 
     public function updatedDepartmentId(): void
     {
+        if (empty($this->department_id)) {
+            $this->department_id = null;
+        }
+
         $this->resetPage();
     }
 
@@ -71,6 +75,22 @@ class Directory extends Component
         $this->resetPage();
     }
 
+    public function resetFilters(): void
+    {
+        $this->reset(['search', 'department_id', 'sort_by', 'sort_direction', 'per_page']);
+        $this->resetPage();
+    }
+
+    #[Computed]
+    public function hasActiveFilters(): bool
+    {
+        return ! empty($this->search)
+            || ! empty($this->department_id)
+            || $this->sort_by !== 'name'
+            || $this->sort_direction !== 'asc'
+            || $this->per_page !== 15;
+    }
+
     #[Computed]
     public function departments()
     {
@@ -82,7 +102,7 @@ class Directory extends Component
     {
         $departmentName = null;
 
-        if ($this->department_id !== null) {
+        if (! empty($this->department_id)) {
             $departmentName = Department::query()
                 ->whereKey($this->department_id)
                 ->value('name');
@@ -101,7 +121,7 @@ class Directory extends Component
                         });
                 });
             })
-            ->when($this->department_id !== null, function (Builder $query) use ($departmentName): void {
+            ->when(! empty($this->department_id), function (Builder $query) use ($departmentName): void {
                 $query->whereHas('studentProfile', function (Builder $subQuery) use ($departmentName): void {
                     $subQuery->where(function (Builder $q) use ($departmentName): void {
                         $q->where('department_id', $this->department_id)

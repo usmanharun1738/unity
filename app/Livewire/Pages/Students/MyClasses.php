@@ -40,6 +40,10 @@ class MyClasses extends Component
 
     public function updatedCourseId(): void
     {
+        if (empty($this->course_id)) {
+            $this->course_id = null;
+        }
+
         $this->resetPage();
     }
 
@@ -68,6 +72,22 @@ class MyClasses extends Component
         }
 
         $this->resetPage();
+    }
+
+    public function resetFilters(): void
+    {
+        $this->reset(['search', 'course_id', 'sort_by', 'sort_direction', 'per_page']);
+        $this->resetPage();
+    }
+
+    #[Computed]
+    public function hasActiveFilters(): bool
+    {
+        return ! empty($this->search)
+            || ! empty($this->course_id)
+            || $this->sort_by !== 'name'
+            || $this->sort_direction !== 'asc'
+            || $this->per_page !== 15;
     }
 
     #[Computed]
