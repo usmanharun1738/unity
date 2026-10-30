@@ -11,8 +11,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'subject_id',
     'department_id',
     'faculty_profile_id',
+    'section_code',
+    'academic_year',
     'code',
     'enrollment_key',
     'title',
@@ -38,6 +41,11 @@ class Course extends Model
             'syllabus_updated_at' => 'datetime',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function subject(): BelongsTo
+    {
+        return $this->belongsTo(Subject::class);
     }
 
     public function department(): BelongsTo

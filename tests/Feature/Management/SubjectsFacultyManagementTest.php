@@ -90,6 +90,12 @@ class SubjectsFacultyManagementTest extends TestCase
             'code' => 'STAT101',
             'department_id' => $department->id,
         ]);
+
+        $this->assertDatabaseHas('subjects', [
+            'title' => 'Statistics',
+            'code' => 'STAT101',
+            'department_id' => $department->id,
+        ]);
     }
 
     public function test_admin_can_update_subject_from_subject_detail_page(): void

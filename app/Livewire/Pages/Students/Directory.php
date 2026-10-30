@@ -101,9 +101,12 @@ class Directory extends Component
                         });
                 });
             })
-            ->when($departmentName, function (Builder $query) use ($departmentName): void {
+            ->when($this->department_id !== null, function (Builder $query) use ($departmentName): void {
                 $query->whereHas('studentProfile', function (Builder $subQuery) use ($departmentName): void {
-                    $subQuery->where('major', 'like', "%{$departmentName}%");
+                    $subQuery->where(function (Builder $q) use ($departmentName): void {
+                        $q->where('department_id', $this->department_id)
+                            ->when($departmentName, fn (Builder $mq) => $mq->orWhere('major', 'like', "%{$departmentName}%"));
+                    });
                 });
             })
             ->when($this->sort_by === 'name', function (Builder $query): void {

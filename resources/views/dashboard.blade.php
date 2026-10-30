@@ -69,9 +69,9 @@
                     <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ __('View Enrollments') }}</div>
                     <div class="mt-1 text-sm text-zinc-500">{{ __('Review your current class enrollments.') }}</div>
                 </a>
-                <a href="{{ route('enrollments.index') }}" wire:navigate class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
+                <a href="{{ route('courses.browse') }}" wire:navigate class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
                     <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{{ __('Browse Available Classes') }}</div>
-                    <div class="mt-1 text-sm text-zinc-500">{{ __('Use enrollment codes to join open classes.') }}</div>
+                    <div class="mt-1 text-sm text-zinc-500">{{ __('Explore course catalog and syllabus details.') }}</div>
                 </a>
             @endif
             <a href="{{ route('enrollments.index') }}" wire:navigate class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">

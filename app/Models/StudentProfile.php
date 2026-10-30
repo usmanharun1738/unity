@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'student_number', 'major', 'year_level', 'bio', 'avatar_path'])]
+#[Fillable(['user_id', 'department_id', 'student_number', 'major', 'year_level', 'bio', 'avatar_path'])]
 class StudentProfile extends Model
 {
     /** @use HasFactory<StudentProfileFactory> */
@@ -20,5 +20,13 @@ class StudentProfile extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<Department, StudentProfile>
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 }

@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Course;
+use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -28,5 +30,18 @@ class DashboardTest extends TestCase
             ->assertSee('Welcome back')
             ->assertSee('Enrollment Trend (Last 6 Months)')
             ->assertSee('Join Class');
+    }
+
+    public function test_dashboard_displays_independent_subjects_and_classes_kpi(): void
+    {
+        $user = User::factory()->create();
+        Subject::factory()->count(3)->create();
+        Course::factory()->count(5)->create();
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk();
+        $this->assertSame(3, Subject::count());
+        $this->assertSame(5, Course::count());
     }
 }

@@ -4,6 +4,7 @@ use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Course;
 use App\Models\Department;
 use App\Models\FacultyProfile;
+use App\Models\Subject;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
@@ -82,7 +83,18 @@ new #[Title('Subjects')] class extends Component
             'description' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $subject = Subject::firstOrCreate(
+            ['code' => $validated['code']],
+            [
+                'department_id' => $validated['department_id'],
+                'title' => $validated['title'],
+                'description' => $validated['description'] ?? null,
+                'credits' => 3,
+            ]
+        );
+
         Course::query()->create($validated + [
+            'subject_id' => $subject->id,
             'credits' => 3,
             'is_active' => true,
         ]);

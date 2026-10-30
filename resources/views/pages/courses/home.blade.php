@@ -7,6 +7,7 @@ use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\AssessmentLog;
 use App\Models\Assignment;
 use App\Models\AssignmentSubmission;
+use App\Models\Attendance;
 use App\Models\Course;
 use App\Models\CourseMaterial;
 use App\Models\CourseModule;
@@ -91,6 +92,13 @@ new #[Title('Course Home')] class extends Component
 
     /** @var array<int, string|int|float|null> */
     public array $quizResponseScores = [];
+
+    public bool $is_attendance_collapsed = true;
+
+    public string $attendance_date = '';
+
+    /** @var array<int, string> */
+    public array $studentAttendanceStatus = [];
 
     public function mount(Course $course): void
     {
@@ -808,6 +816,73 @@ new #[Title('Course Home')] class extends Component
         $this->successToast(__('Student removed from course.'));
     }
 
+    public function toggleAttendanceCollapsed(): void
+    {
+        $this->is_attendance_collapsed = ! $this->is_attendance_collapsed;
+        if (! $this->is_attendance_collapsed && empty($this->studentAttendanceStatus)) {
+            $this->loadAttendanceForDate();
+        }
+    }
+
+    public function updatedAttendanceDate(): void
+    {
+        $this->loadAttendanceForDate();
+    }
+
+    public function loadAttendanceForDate(): void
+    {
+        if ($this->attendance_date === '') {
+            $this->attendance_date = now()->format('Y-m-d');
+        }
+
+        $existing = Attendance::query()
+            ->where('course_id', $this->course->id)
+            ->where('attendance_date', $this->attendance_date)
+            ->pluck('status', 'user_id')
+            ->all();
+
+        foreach ($this->enrolledStudents as $student) {
+            $this->studentAttendanceStatus[$student->id] = $existing[$student->id] ?? 'present';
+        }
+    }
+
+    public function markAllAttendance(string $status): void
+    {
+        foreach ($this->enrolledStudents as $student) {
+            $this->studentAttendanceStatus[$student->id] = $status;
+        }
+    }
+
+    public function saveAttendance(): void
+    {
+        Gate::authorize('update', $this->course);
+        abort_unless(auth()->user()->can('attendance.manage'), 403);
+
+        if ($this->attendance_date === '') {
+            $this->attendance_date = now()->format('Y-m-d');
+        }
+
+        foreach ($this->studentAttendanceStatus as $studentId => $status) {
+            if (! in_array($status, ['present', 'absent', 'late', 'excused'], true)) {
+                continue;
+            }
+
+            Attendance::query()->updateOrCreate(
+                [
+                    'course_id' => $this->course->id,
+                    'user_id' => $studentId,
+                    'attendance_date' => $this->attendance_date,
+                ],
+                [
+                    'status' => $status,
+                    'marked_by' => auth()->id(),
+                ]
+            );
+        }
+
+        $this->successToast(__('Attendance recorded successfully for :date', ['date' => $this->attendance_date]));
+    }
+
     #[Computed]
     public function enrolledStudents()
     {
@@ -821,9 +896,7 @@ new #[Title('Course Home')] class extends Component
         <div class="text-sm text-zinc-500">
             <a href="{{ route('dashboard') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Dashboard') }}</a>
             <span class="mx-2">/</span>
-            <button type="button" onclick="history.back()" class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">
-                {{ __('Back') }}
-            </button>
+            <a href="{{ route('courses.browse') }}" wire:navigate class="hover:text-zinc-700 hover:underline dark:hover:text-zinc-200">{{ __('Classes') }}</a>
             <span class="mx-2">/</span>
             <span>{{ __('Course Home') }}</span>
         </div>
@@ -1303,6 +1376,61 @@ new #[Title('Course Home')] class extends Component
                                     </div>
                                 @endforelse
                             </div>
+                        </div>
+                    </div>
+                @endif
+            </div>
+        @endif
+
+        @if ($this->canManageCourse && auth()->user()->can('attendance.manage'))
+            <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <div class="flex items-center justify-between gap-2">
+                    <div>
+                        <h2 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">{{ __('Class Attendance') }}</h2>
+                        <p class="text-xs text-zinc-500">{{ __('Track and record daily attendance for enrolled students.') }}</p>
+                    </div>
+                    <flux:button
+                        size="sm"
+                        variant="ghost"
+                        wire:click="toggleAttendanceCollapsed"
+                        :icon="$is_attendance_collapsed ? 'chevron-down' : 'chevron-up'"
+                    >
+                        {{ $is_attendance_collapsed ? __('Expand') : __('Collapse') }}
+                    </flux:button>
+                </div>
+
+                @if (! $is_attendance_collapsed)
+                    <div class="mt-4 space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center gap-2">
+                                <label class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ __('Session Date:') }}</label>
+                                <flux:input wire:model.live="attendance_date" type="date" class="w-44" />
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <flux:button size="sm" variant="filled" wire:click="markAllAttendance('present')">{{ __('Mark All Present') }}</flux:button>
+                                <flux:button size="sm" variant="primary" wire:click="saveAttendance">{{ __('Save Attendance') }}</flux:button>
+                            </div>
+                        </div>
+
+                        <div class="divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
+                            @forelse ($this->enrolledStudents as $enrolledStudent)
+                                <div class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $enrolledStudent->name }}</div>
+                                        <div class="text-xs text-zinc-500">{{ $enrolledStudent->email }}</div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <flux:select wire:model="studentAttendanceStatus.{{ $enrolledStudent->id }}" class="w-36">
+                                            <option value="present">{{ __('Present') }}</option>
+                                            <option value="late">{{ __('Late') }}</option>
+                                            <option value="absent">{{ __('Absent') }}</option>
+                                            <option value="excused">{{ __('Excused') }}</option>
+                                        </flux:select>
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="p-4 text-center text-sm text-zinc-500">{{ __('No enrolled students in this class.') }}</div>
+                            @endforelse
                         </div>
                     </div>
                 @endif

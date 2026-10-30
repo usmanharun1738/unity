@@ -4,6 +4,7 @@ use App\Livewire\Concerns\HasToastFeedback;
 use App\Models\Course;
 use App\Models\Department;
 use App\Models\FacultyProfile;
+use App\Models\Subject;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
@@ -97,7 +98,20 @@ new #[Title('Classes')] class extends Component
             'semester' => ['nullable', 'string', 'max:50'],
         ]);
 
-        Course::query()->create($validated + ['is_active' => true]);
+        $subject = Subject::firstOrCreate(
+            ['code' => $validated['code']],
+            [
+                'department_id' => $validated['department_id'],
+                'title' => $validated['title'],
+                'description' => $validated['description'] ?? null,
+                'credits' => $validated['credits'],
+            ]
+        );
+
+        Course::query()->create($validated + [
+            'subject_id' => $subject->id,
+            'is_active' => true,
+        ]);
 
         $this->reset([
             'title',

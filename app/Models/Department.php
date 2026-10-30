@@ -19,6 +19,11 @@ class Department extends Model
         return $this->hasMany(FacultyProfile::class);
     }
 
+    public function subjects(): HasMany
+    {
+        return $this->hasMany(Subject::class);
+    }
+
     public function courses(): HasMany
     {
         return $this->hasMany(Course::class);

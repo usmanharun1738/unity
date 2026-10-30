@@ -10,6 +10,7 @@ use App\Models\Course;
 use App\Models\Department;
 use App\Models\Enrollment;
 use App\Models\FacultyProfile;
+use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -32,7 +33,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ],
             ['label' => 'Faculty', 'value' => FacultyProfile::count()],
             ['label' => 'Classes', 'value' => Course::count()],
-            ['label' => 'Subjects', 'value' => Course::count()],
+            ['label' => 'Subjects', 'value' => Subject::count()],
         ];
 
         $departmentDistribution = Department::query()
