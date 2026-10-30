@@ -18,6 +18,7 @@ class FacultySeeder extends Seeder
         $departments = Department::pluck('id', 'code')->toArray();
 
         $facultyData = [
+            ['name' => 'Dr. Jane Smith', 'email' => 'faculty@example.com', 'department' => 'CS', 'title' => 'Professor'],
             ['name' => 'Dr. Alice Johnson', 'email' => 'alice@university.edu', 'department' => 'CS', 'title' => 'Professor'],
             ['name' => 'Dr. Bob Smith', 'email' => 'bob@university.edu', 'department' => 'CS', 'title' => 'Associate Professor'],
             ['name' => 'Dr. Carol Williams', 'email' => 'carol@university.edu', 'department' => 'ENG', 'title' => 'Professor'],
