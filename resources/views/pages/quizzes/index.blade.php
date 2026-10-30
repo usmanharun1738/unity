@@ -6,6 +6,7 @@ use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\Quiz;
+use App\Services\Grading\GradeCalculatorService;
 use App\Models\QuizQuestion;
 use App\Models\QuizResponse;
 use Illuminate\Support\Facades\DB;
@@ -852,22 +853,8 @@ new #[Title('Quizzes')] class extends Component
 
         $grade->quiz_score = $quizAggregate;
 
-        if ($grade->isDirty(['quiz_score'])) {
-            $finalGrade = (($grade->quiz_score ?? 0) * 0.60) +
-                (($grade->project_score ?? 0) * 0.10) +
-                (($grade->exam_score ?? 0) * 0.30);
-
-            $grade->final_grade = round($finalGrade, 2);
-            $grade->grade_letter = match (true) {
-                $finalGrade >= 80 => 'A',
-                $finalGrade >= 70 => 'B',
-                $finalGrade >= 60 => 'C',
-                $finalGrade >= 50 => 'D',
-                default => 'F',
-            };
-        }
-
-        $grade->save();
+        $scoresChanged = $grade->isDirty(['quiz_score']);
+        app(GradeCalculatorService::class)->recalculate($grade, $scoresChanged);
     }
 }; ?>
 

@@ -278,4 +278,52 @@ class CourseAssignmentsTest extends TestCase
             'assessment_type' => 'assignment',
         ]);
     }
+
+    public function test_instructor_and_author_can_download_submission_file(): void
+    {
+        Storage::fake('local');
+        ['instructor' => $instructor, 'course' => $course] = $this->createInstructorAndCourse();
+
+        $student = User::factory()->create();
+        $student->assignRole(RoleName::Student->value);
+        Enrollment::factory()->create([
+            'user_id' => $student->id,
+            'course_id' => $course->id,
+            'status' => 'enrolled',
+        ]);
+
+        $assignment = Assignment::factory()->create(['course_id' => $course->id]);
+
+        $filePath = 'assignment-submissions/'.$course->id.'/'.$assignment->id.'/sample_work.pdf';
+        Storage::disk('local')->put($filePath, 'PDF file contents');
+
+        $submission = AssignmentSubmission::factory()->create([
+            'assignment_id' => $assignment->id,
+            'user_id' => $student->id,
+            'file_path' => $filePath,
+        ]);
+
+        // 1. Instructor can download
+        $this->actingAs($instructor)
+            ->get(route('courses.assignments.submissions.download', ['course' => $course->id, 'submission' => $submission->id]))
+            ->assertOk();
+
+        // 2. Student author can download
+        $this->actingAs($student)
+            ->get(route('courses.assignments.submissions.download', ['course' => $course->id, 'submission' => $submission->id]))
+            ->assertOk();
+
+        // 3. Another student cannot download
+        $otherStudent = User::factory()->create();
+        $otherStudent->assignRole(RoleName::Student->value);
+        Enrollment::factory()->create([
+            'user_id' => $otherStudent->id,
+            'course_id' => $course->id,
+            'status' => 'enrolled',
+        ]);
+
+        $this->actingAs($otherStudent)
+            ->get(route('courses.assignments.submissions.download', ['course' => $course->id, 'submission' => $submission->id]))
+            ->assertForbidden();
+    }
 }

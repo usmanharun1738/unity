@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\RoleName;
+use App\Http\Controllers\AssignmentSubmissionDownloadController;
 use App\Http\Controllers\CourseMaterialDownloadController;
 use App\Livewire\Pages\Students\Directory as StudentsDirectory;
 use App\Livewire\Pages\Students\MyClasses as MyClassStudents;
@@ -42,7 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->orderByDesc('count')
             ->limit(5)
             ->get()
-            ->map(fn(object $row): array => [
+            ->map(fn (object $row): array => [
                 'name' => (string) $row->name,
                 'count' => (int) $row->count,
             ])
@@ -79,6 +80,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('quizzes', 'pages::quizzes.index')->name('quizzes.index');
     Route::get('classes/{course}/materials/{material}/download', CourseMaterialDownloadController::class)
         ->name('courses.materials.download');
+    Route::get('classes/{course}/assignments/submissions/{submission}/download', AssignmentSubmissionDownloadController::class)
+        ->name('courses.assignments.submissions.download');
 });
 
 Route::middleware(['auth', 'verified', 'role:admin|department-staff'])
@@ -110,4 +113,4 @@ Route::middleware(['auth', 'verified'])
         Route::livewire('enrollments', 'pages::enrollments.index')->name('enrollments.index');
     });
 
-require __DIR__ . '/settings.php';
+require __DIR__.'/settings.php';

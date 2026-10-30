@@ -14,6 +14,7 @@ use App\Models\Enrollment;
 use App\Models\Grade;
 use App\Models\QuizResponse;
 use App\Models\User;
+use App\Services\Grading\GradeCalculatorService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -363,7 +364,7 @@ new #[Title('Course Home')] class extends Component
 
         $validated = $this->validate([
             'submission_assignment_id' => ['required', 'integer'],
-            'submission_file' => ['required', 'file', 'max:10240'],
+            'submission_file' => ['required', 'file', 'max:10240', 'mimes:pdf,docx,doc,zip,txt'],
         ]);
 
         $assignment = Assignment::query()
@@ -486,30 +487,8 @@ new #[Title('Course Home')] class extends Component
 
         $grade->assignment_score = $assignmentAggregate;
 
-        if ($grade->isDirty(['assignment_score'])) {
-            $grade->is_approved_by_admin = false;
-            $grade->approved_by = null;
-            $grade->approved_at = null;
-        }
-
-        $finalGrade =
-            (($grade->ca_score ?? 0) * 0.25) +
-            (($grade->test_score ?? 0) * 0.15) +
-            (($grade->quiz_score ?? 0) * 0.10) +
-            (($grade->assignment_score ?? 0) * 0.10) +
-            (($grade->project_score ?? 0) * 0.10) +
-            (($grade->exam_score ?? 0) * 0.30);
-
-        $grade->final_grade = round($finalGrade, 2);
-        $grade->grade_letter = match (true) {
-            $finalGrade >= 80 => 'A',
-            $finalGrade >= 70 => 'B',
-            $finalGrade >= 60 => 'C',
-            $finalGrade >= 50 => 'D',
-            default => 'F',
-        };
-
-        $grade->save();
+        $scoresChanged = $grade->isDirty(['assignment_score']);
+        app(GradeCalculatorService::class)->recalculate($grade, $scoresChanged);
     }
 
     public function toggleQuizzesCollapsed(): void
@@ -639,7 +618,7 @@ new #[Title('Course Home')] class extends Component
             $validated = $this->validate([
                 'syllabus_file_title' => ['required', 'string', 'max:150'],
                 'syllabus_file_description' => ['nullable', 'string', 'max:400'],
-                'syllabus_file' => ['required', 'file', 'max:10240'],
+                'syllabus_file' => ['required', 'file', 'max:10240', 'mimes:pdf,docx,doc,txt'],
             ]);
         } catch (UnableToRetrieveMetadata $exception) {
             $this->reset('syllabus_file');
@@ -688,7 +667,7 @@ new #[Title('Course Home')] class extends Component
                 'material_title' => ['required', 'string', 'max:150'],
                 'material_description' => ['nullable', 'string', 'max:400'],
                 'material_module_id' => ['required', 'exists:course_modules,id'],
-                'material_file' => ['required', 'file', 'max:10240'],
+                'material_file' => ['required', 'file', 'max:10240', 'mimes:pdf,docx,doc,ppt,pptx,xls,xlsx,zip,txt,jpg,jpeg,png'],
             ]);
         } catch (UnableToRetrieveMetadata $exception) {
             $this->reset('material_file');
@@ -1145,6 +1124,17 @@ new #[Title('Course Home')] class extends Component
                                                 {{ $mySubmission->is_late ? __('Submitted late') : __('Submitted') }}
                                             </flux:badge>
 
+                                            @if ($mySubmission->file_path)
+                                                <flux:button
+                                                    size="xs"
+                                                    variant="ghost"
+                                                    icon="arrow-down-tray"
+                                                    :href="route('courses.assignments.submissions.download', ['course' => $this->course->id, 'submission' => $mySubmission->id])"
+                                                >
+                                                    {{ __('My File') }}
+                                                </flux:button>
+                                            @endif
+
                                             @if ($mySubmission->score !== null)
                                                 <flux:badge variant="success">{{ __('Score: :score', ['score' => $mySubmission->score]) }}</flux:badge>
                                             @endif
@@ -1178,6 +1168,16 @@ new #[Title('Course Home')] class extends Component
                                                         </div>
                                                     </div>
                                                     <div class="flex items-center gap-2">
+                                                        @if ($submission->file_path)
+                                                            <flux:button
+                                                                size="sm"
+                                                                variant="filled"
+                                                                icon="arrow-down-tray"
+                                                                :href="route('courses.assignments.submissions.download', ['course' => $this->course->id, 'submission' => $submission->id])"
+                                                            >
+                                                                {{ __('Download File') }}
+                                                            </flux:button>
+                                                        @endif
                                                         @if ($submission->is_late)
                                                             <flux:badge variant="warning">{{ __('Late') }}</flux:badge>
                                                         @endif

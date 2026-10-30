@@ -4,6 +4,7 @@ namespace App\Livewire\Pages\Students;
 
 use App\Models\Grade;
 use App\Models\User;
+use App\Services\Grading\GradeCalculatorService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -168,35 +169,9 @@ class Show extends Component
             $grade->exam_score = (float) $this->exam_score;
         }
 
-        // Any score change requires a fresh admin verification.
-        if ($grade->isDirty(['ca_score', 'test_score', 'assignment_score', 'quiz_score', 'project_score', 'exam_score'])) {
-            $grade->is_approved_by_admin = false;
-            $grade->approved_by = null;
-            $grade->approved_at = null;
-        }
+        $scoresChanged = $grade->isDirty(['ca_score', 'test_score', 'assignment_score', 'quiz_score', 'project_score', 'exam_score']);
 
-        // Calculate final grade: CA(30%) + Tests(20%) + Assignments(10%) + Projects(10%) + Exam(30%)
-        $scores = [
-            'ca' => $grade->ca_score ?? 0,
-            'test' => $grade->test_score ?? 0,
-            'assignment' => $grade->assignment_score ?? 0,
-            'quiz' => $grade->quiz_score ?? 0,
-            'project' => $grade->project_score ?? 0,
-            'exam' => $grade->exam_score ?? 0,
-        ];
-
-        $finalGrade = ($scores['ca'] * 0.30) + ($scores['test'] * 0.20) + ($scores['assignment'] * 0.10) + ($scores['project'] * 0.10) + ($scores['exam'] * 0.30);
-        $grade->final_grade = round($finalGrade, 2);
-
-        $grade->grade_letter = match (true) {
-            $finalGrade >= 80 => 'A',
-            $finalGrade >= 70 => 'B',
-            $finalGrade >= 60 => 'C',
-            $finalGrade >= 50 => 'D',
-            default => 'F'
-        };
-
-        $grade->save();
+        app(GradeCalculatorService::class)->recalculate($grade, $scoresChanged);
 
         $this->closeAssessmentForm();
         $this->assessment_message = 'Assessment scores saved successfully!';
