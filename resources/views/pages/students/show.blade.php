@@ -19,7 +19,7 @@
     <!-- Student Info Cards -->
     <div class="grid md:grid-cols-4 gap-4">
         <flux:card class="space-y-2">
-            <flux:heading level="3" size="lg">{{ $this->studentProfile?->student_number ?? '-' }}</flux:heading>
+            <flux:heading level="3" size="lg" class="font-mono tracking-wider tabular-nums font-bold">{{ $this->studentProfile?->student_number ?? '-' }}</flux:heading>
             <flux:text size="sm">{{ __('Student Number') }}</flux:text>
         </flux:card>
         <flux:card class="space-y-2">
@@ -27,11 +27,11 @@
             <flux:text size="sm">{{ __('Major/Department') }}</flux:text>
         </flux:card>
         <flux:card class="space-y-2">
-            <flux:heading level="3" size="lg">Year {{ $this->studentProfile?->year_level ?? '-' }}</flux:heading>
+            <flux:heading level="3" size="lg" class="tabular-nums font-semibold">Year {{ $this->studentProfile?->year_level ?? '-' }}</flux:heading>
             <flux:text size="sm">{{ __('Year Level') }}</flux:text>
         </flux:card>
         <flux:card class="space-y-2">
-            <flux:heading level="3" size="lg">{{ $this->enrolledCourses->count() }}</flux:heading>
+            <flux:heading level="3" size="lg" class="font-mono tabular-nums font-bold">{{ $this->enrolledCourses->count() }}</flux:heading>
             <flux:text size="sm">{{ __('Enrolled Courses') }}</flux:text>
         </flux:card>
     </div>
@@ -48,19 +48,25 @@
                         <div class="flex items-center justify-between p-3 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800">
                             <div>
                                 <p class="font-semibold">{{ $course->title }}</p>
-                                <p class="text-sm text-zinc-600 dark:text-zinc-400">{{ $course->code }}</p>
+                                <p class="font-mono text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ $course->code }}</p>
                             </div>
                             <div class="flex items-center gap-2">
                                 @php
                                     $grade = $this->studentGrades->get($course->id)?->first();
                                 @endphp
                                 @if ($grade)
-                                    <flux:badge :variant="match($grade->grade_letter) {
-                                        'A' => 'success',
-                                        'B', 'C', 'D' => 'warning',
-                                        'F' => 'danger',
-                                        default => 'default'
-                                    }">
+                                    <flux:badge
+                                        :color="match($grade->grade_letter) {
+                                            'A' => 'emerald',
+                                            'B' => 'blue',
+                                            'C' => 'amber',
+                                            'D' => 'orange',
+                                            'F' => 'red',
+                                            default => 'zinc'
+                                        }"
+                                        size="sm"
+                                        class="font-mono font-semibold"
+                                    >
                                         {{ $grade->grade_letter ?? 'N/A' }} - {{ number_format($grade->final_grade, 2) }}%
                                     </flux:badge>
                                 @else
@@ -204,16 +210,22 @@
                                             <flux:text size="sm" class="text-zinc-600 dark:text-zinc-400">
                                                 {{ __('Calculated Final Grade') }}
                                             </flux:text>
-                                            <flux:heading level="3" size="lg">
+                                            <flux:heading level="3" size="lg" class="font-mono tabular-nums font-bold">
                                                 {{ number_format($calculatedFinal, 2) }}% ({{ $letterGrade }})
                                             </flux:heading>
                                         </div>
-                                        <flux:badge :variant="match($letterGrade) {
-                                            'A' => 'success',
-                                            'B', 'C', 'D' => 'warning',
-                                            'F' => 'danger',
-                                            default => 'default'
-                                        }">
+                                        <flux:badge
+                                            :color="match($letterGrade) {
+                                                'A' => 'emerald',
+                                                'B' => 'blue',
+                                                'C' => 'amber',
+                                                'D' => 'orange',
+                                                'F' => 'red',
+                                                default => 'zinc'
+                                            }"
+                                            size="sm"
+                                            class="font-mono font-bold text-sm px-2.5 py-0.5"
+                                        >
                                             {{ $letterGrade }}
                                         </flux:badge>
                                     </div>
@@ -277,15 +289,21 @@
                                     </div>
                                 </div>
                                 <div class="text-right">
-                                    <flux:heading level="3" size="xl">
+                                    <flux:heading level="3" size="xl" class="font-mono tabular-nums font-bold">
                                         {{ number_format($grade->final_grade, 2) }}%
                                     </flux:heading>
-                                    <flux:badge :variant="match($grade->grade_letter) {
-                                        'A' => 'success',
-                                        'B', 'C', 'D' => 'warning',
-                                        'F' => 'danger',
-                                        default => 'default'
-                                    }">
+                                    <flux:badge
+                                        :color="match($grade->grade_letter) {
+                                            'A' => 'emerald',
+                                            'B' => 'blue',
+                                            'C' => 'amber',
+                                            'D' => 'orange',
+                                            'F' => 'red',
+                                            default => 'zinc'
+                                        }"
+                                        size="sm"
+                                        class="font-mono font-bold mt-1"
+                                    >
                                         {{ $grade->grade_letter ?? 'N/A' }}
                                     </flux:badge>
 

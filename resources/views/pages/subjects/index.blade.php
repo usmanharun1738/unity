@@ -183,7 +183,7 @@ new #[Title('Subjects')] class extends Component
                     @forelse ($this->subjects as $subject)
                         <tr>
                             <td class="px-4 py-3">
-                                <span class="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">{{ $subject->code }}</span>
+                                <span class="font-mono rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400 tabular-nums uppercase tracking-wide">{{ $subject->code }}</span>
                             </td>
                             <td class="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">{{ $subject->title }}</td>
                             <td class="px-4 py-3">

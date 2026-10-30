@@ -109,7 +109,12 @@
                                     <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                                         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                             <div class="text-sm">
-                                                <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $submission->student?->name }}</div>
+                                                <div class="font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                                                    <span>{{ $submission->student?->name }}</span>
+                                                    @if ($submission->student?->studentProfile?->student_number)
+                                                        <span class="font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums font-semibold">({{ $submission->student->studentProfile->student_number }})</span>
+                                                    @endif
+                                                </div>
                                                 <div class="text-xs text-zinc-500">{{ $submission->student?->email }}</div>
                                                 <div class="mt-1 text-xs text-zinc-500">
                                                     {{ __('Submitted: :date', ['date' => $submission->submission_date?->format('M d, Y h:i A')]) }}

@@ -212,7 +212,7 @@ new #[Title('Classes')] class extends Component
                             <tr>
                                 <td class="px-4 py-3">
                                     <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $course->title }}</div>
-                                    <div class="text-xs text-zinc-500">{{ $course->code }}</div>
+                                    <div class="font-mono text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ $course->code }}</div>
                                 </td>
                                 <td class="px-4 py-3">
                                     <span class="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">

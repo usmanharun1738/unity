@@ -9,7 +9,7 @@
 
     <div>
         <flux:heading size="xl">{{ $course->title }}</flux:heading>
-        <flux:subheading>{{ $course->department?->name }} · {{ $course->code }}</flux:subheading>
+        <flux:subheading>{{ $course->department?->name }} · <span class="font-mono uppercase tracking-wider">{{ $course->code }}</span></flux:subheading>
 
         @if ($this->canManageCourse || $this->isEnrolled)
             <div class="mt-3">

@@ -32,7 +32,12 @@
                     @forelse ($this->enrolledStudents as $enrolledStudent)
                         <div class="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $enrolledStudent->name }}</div>
+                                <div class="font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                                    <span>{{ $enrolledStudent->name }}</span>
+                                    @if ($enrolledStudent->studentProfile?->student_number)
+                                        <span class="font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums font-semibold">({{ $enrolledStudent->studentProfile->student_number }})</span>
+                                    @endif
+                                </div>
                                 <div class="text-xs text-zinc-500">{{ $enrolledStudent->email }}</div>
                             </div>
                             <div class="flex items-center gap-2">

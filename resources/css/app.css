@@ -10,57 +10,127 @@
 
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 
-    --color-zinc-50: #fafafa;
-    --color-zinc-100: #f5f5f5;
-    --color-zinc-200: #e5e5e5;
-    --color-zinc-300: #d4d4d4;
-    --color-zinc-400: #a3a3a3;
-    --color-zinc-500: #737373;
-    --color-zinc-600: #525252;
-    --color-zinc-700: #404040;
-    --color-zinc-800: #262626;
-    --color-zinc-900: #171717;
-    --color-zinc-950: #0a0a0a;
+    /* Warm Parchment & Obsidian Core Surfaces */
+    --color-parchment: #fbfbf9;
+    --color-parchment-50: #fefefe;
+    --color-parchment-100: #fbfbf9;
+    --color-parchment-200: #f5f5f0;
+    --color-parchment-300: #ebebe2;
 
-    --color-accent: var(--color-neutral-800);
-    --color-accent-content: var(--color-neutral-800);
-    --color-accent-foreground: var(--color-white);
+    --color-obsidian: #0b1120;
+    --color-obsidian-surface: #0f172a;
+    --color-obsidian-card: #111e36;
+    --color-obsidian-border: #1e293b;
+
+    /* Oxford Slate Palette */
+    --color-slate-50: #f8fafc;
+    --color-slate-100: #f1f5f9;
+    --color-slate-200: #e2e8f0;
+    --color-slate-300: #cbd5e1;
+    --color-slate-400: #94a3b8;
+    --color-slate-500: #64748b;
+    --color-slate-600: #475569;
+    --color-slate-700: #334155;
+    --color-slate-800: #1e293b;
+    --color-slate-900: #0f172a;
+    --color-slate-950: #0b1120;
+
+    /* Academic Amber Accents */
+    --color-amber-50: #fffbeb;
+    --color-amber-100: #fef3c7;
+    --color-amber-200: #fde68a;
+    --color-amber-300: #fcd34d;
+    --color-amber-400: #fbbf24;
+    --color-amber-500: #f59e0b;
+    --color-amber-600: #d97706;
+    --color-amber-700: #b45309;
+    --color-amber-800: #92400e;
+    --color-amber-900: #78350f;
+    --color-amber-950: #451a03;
+
+    /* Flux Zinc Mapping - Calibrated to Warm Parchment & Oxford Obsidian */
+    --color-zinc-50: #fbfbf9;
+    --color-zinc-100: #f5f5f0;
+    --color-zinc-200: #e2e8f0;
+    --color-zinc-300: #cbd5e1;
+    --color-zinc-400: #94a3b8;
+    --color-zinc-500: #64748b;
+    --color-zinc-600: #475569;
+    --color-zinc-700: #334155;
+    --color-zinc-800: #1e293b;
+    --color-zinc-900: #0f172a;
+    --color-zinc-950: #0b1120;
+
+    /* Flux Accent Tokens */
+    --color-accent: #0f172a;
+    --color-accent-content: #0f172a;
+    --color-accent-foreground: #fbfbf9;
+
+    /* Calibrated Micro Radii */
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.75rem;
+    --radius-2xl: 1rem;
 }
 
 @layer theme {
     .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+        --color-accent: #d97706;
+        --color-accent-content: #d97706;
+        --color-accent-foreground: #0b1120;
     }
 }
 
 @layer base {
-
     *,
     ::after,
     ::before,
     ::backdrop,
     ::file-selector-button {
-        border-color: var(--color-gray-200, currentColor);
+        border-color: var(--color-slate-200, currentColor);
+    }
+
+    .dark *,
+    .dark ::after,
+    .dark ::before,
+    .dark ::backdrop,
+    .dark ::file-selector-button {
+        border-color: var(--color-slate-800, currentColor);
+    }
+
+    body {
+        font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }
 }
 
+/* Tabular numbers for enterprise metrics and data density */
+.tabular-nums {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Monospaced academic code / matric badges */
+.font-mono-code {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+/* Anti-slop Flux Form Controls & Labels */
 [data-flux-field]:not(ui-radio, ui-checkbox) {
-    @apply grid gap-2;
+    @apply grid gap-1.5;
 }
 
 [data-flux-label] {
-    @apply  !mb-0 !leading-tight;
+    @apply !mb-0 !leading-tight text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400;
 }
 
 input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
-    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+    @apply outline-hidden ring-2 ring-amber-500/70 ring-offset-1 ring-offset-white dark:ring-offset-obsidian border-amber-500/80;
 }
-
-/* \[:where(&)\]:size-4 {
-    @apply size-4;
-} */

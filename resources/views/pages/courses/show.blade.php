@@ -235,13 +235,13 @@ new #[Title('Class Detail')] class extends Component
 
                     <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
                         <flux:text>{{ __('Class Code') }}</flux:text>
-                        <div class="mt-2 text-sm font-medium">{{ $course->code }}</div>
+                        <div class="mt-2 font-mono text-sm font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">{{ $course->code }}</div>
                         <div class="text-sm text-zinc-500">{{ __('Copy this code for enrollment requests.') }}</div>
                     </div>
 
                     <div class="rounded-xl border border-zinc-200 p-4 dark:border-zinc-700">
                         <flux:text>{{ __('Enrollment Key') }}</flux:text>
-                        <div class="mt-2 text-sm font-medium">{{ $course->enrollment_key }}</div>
+                        <div class="mt-2 font-mono text-sm font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">{{ $course->enrollment_key }}</div>
                         <div class="text-sm text-zinc-500">{{ __('Students use this key to join the class.') }}</div>
                     </div>
 

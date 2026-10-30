@@ -239,7 +239,7 @@ new #[Title('Class Catalog')] class extends Component
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">{{ $course->title }}</h3>
-                        <p class="text-sm text-zinc-500">{{ $course->code }}</p>
+                        <p class="font-mono text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ $course->code }}</p>
                     </div>
                     <span class="rounded-full px-2 py-1 text-xs {{ $course->is_active ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-200' }}">
                         {{ $course->is_active ? __('Active') : __('Archived') }}

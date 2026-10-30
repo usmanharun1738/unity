@@ -153,7 +153,7 @@ new #[Title('Subject Details')] class extends Component
                 </thead>
                 <tbody>
                     <tr>
-                        <td class="px-4 py-3">{{ $subject->code }}</td>
+                        <td class="px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">{{ $subject->code }}</td>
                         <td class="px-4 py-3 font-medium">{{ $subject->title }}</td>
                         <td class="px-4 py-3">{{ $subject->department?->name }}</td>
                         <td class="px-4 py-3 text-zinc-500">{{ str($subject->description)->limit(100) }}</td>

@@ -179,7 +179,7 @@ new #[Title('Faculty Profile')] class extends Component
                 <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
                     @forelse ($this->courses as $course)
                         <tr>
-                            <td class="px-4 py-3">{{ $course->code }}</td>
+                            <td class="px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">{{ $course->code }}</td>
                             <td class="px-4 py-3 font-medium">{{ $course->title }}</td>
                             <td class="px-4 py-3">{{ $course->department?->name }}</td>
                             <td class="px-4 py-3 text-zinc-500">{{ str($course->description)->limit(80) }}</td>

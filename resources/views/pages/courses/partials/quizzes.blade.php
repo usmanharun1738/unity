@@ -70,7 +70,12 @@
                                     <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
                                         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                             <div class="text-sm">
-                                                <div class="font-medium text-zinc-900 dark:text-zinc-100">{{ $response->student?->name ?? __('Unknown') }}</div>
+                                                <div class="font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                                                    <span>{{ $response->student?->name ?? __('Unknown') }}</span>
+                                                    @if ($response->student?->studentProfile?->student_number)
+                                                        <span class="font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums font-semibold">({{ $response->student->studentProfile->student_number }})</span>
+                                                    @endif
+                                                </div>
                                                 <div class="text-xs text-zinc-500">{{ $response->student?->email }}</div>
                                                 <div class="mt-1 text-xs text-zinc-500">
                                                     {{ __('Submitted: :date', ['date' => $response->submitted_at?->format('M d, Y h:i A') ?? __('In progress')]) }}
@@ -78,7 +83,7 @@
                                             </div>
                                             <div class="flex items-center gap-2">
                                                 @if ($response->score !== null)
-                                                    <flux:badge variant="success">{{ __('Graded: :score', ['score' => $response->score]) }}</flux:badge>
+                                                    <flux:badge variant="success" class="font-mono tabular-nums">{{ __('Graded: :score', ['score' => $response->score]) }}</flux:badge>
                                                 @endif
                                             </div>
                                         </div>

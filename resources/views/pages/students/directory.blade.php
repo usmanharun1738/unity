@@ -87,7 +87,7 @@
                             </div>
                         </td>
                         <td class="px-4 py-3">
-                            <code class="text-xs bg-zinc-100 px-2 py-1 rounded dark:bg-zinc-800">
+                            <code class="font-mono text-xs bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 px-2 py-1 rounded-md border border-slate-200/80 dark:border-slate-700 font-semibold tabular-nums tracking-wide">
                                 {{ $student->studentProfile?->student_number ?? '-' }}
                             </code>
                         </td>
@@ -96,7 +96,9 @@
                         </td>
                         <td class="px-4 py-3">
                             <flux:badge
-                                :variant="$student->studentProfile?->year_level === 4 ? 'success' : 'default'"
+                                :color="$student->studentProfile?->year_level === 4 ? 'emerald' : 'zinc'"
+                                size="sm"
+                                class="font-mono tabular-nums"
                             >
                                 Year {{ $student->studentProfile?->year_level ?? '-' }}
                             </flux:badge>
